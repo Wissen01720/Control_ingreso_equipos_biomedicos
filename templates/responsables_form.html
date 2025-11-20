@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Editar responsable' if is_edit else 'Nuevo responsable' }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-7 col-xl-6">
+    <div class="card shadow">
+      <div class="card-body">
+        <h3 class="mb-3">{{ 'Editar responsable' if is_edit else 'Nuevo responsable' }}</h3>
+
+        <form method="POST" novalidate>
+          {{ form.hidden_tag() }}
+
+          <div class="row g-3">
+            <div class="col-md-4">
+              <label class="form-label" for="{{ form.id_responsable.id }}">{{ form.id_responsable.label }}</label>
+              {{ form.id_responsable(class="form-control", id=form.id_responsable.id) }}
+              <div class="form-text">Ejemplo: cédula o código interno.</div>
+            </div>
+
+            <div class="col-md-8">
+              <label class="form-label" for="{{ form.nombre_responsable.id }}">{{ form.nombre_responsable.label }}</label>
+              {{ form.nombre_responsable(class="form-control", id=form.nombre_responsable.id) }}
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label" for="{{ form.correo_responsable.id }}">{{ form.correo_responsable.label }}</label>
+              {{ form.correo_responsable(class="form-control", id=form.correo_responsable.id) }}
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label" for="{{ form.empresa_id.id }}">{{ form.empresa_id.label }}</label>
+              {{ form.empresa_id(class="form-select", id=form.empresa_id.id) }}
+            </div>
+          </div>
+
+          <div class="d-flex gap-2 mt-4">
+            {{ form.submit(class="btn btn-primary") }}
+            <a href="{{ url_for('responsables_index') }}" class="btn btn-outline-secondary">Cancelar</a>
+          </div>
+        </form>
+
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

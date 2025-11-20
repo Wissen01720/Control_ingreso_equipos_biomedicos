@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}Empresas externas{% endblock %}
+
+{% block content %}
+{% set is_admin = (current_user.role == 'admin') %}
+
+<div class="row justify-content-center">
+  <div class="col-lg-10">
+    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+      <div class="d-flex align-items-center gap-2">
+        <h3 class="m-0">Empresas externas</h3>
+        {% if not is_admin %}
+          <span class="badge text-bg-secondary">Solo lectura</span>
+        {% endif %}
+      </div>
+
+      <form class="d-flex gap-2" method="get" action="{{ url_for('empresas_index') }}">
+        <input class="form-control" name="q" value="{{ q or '' }}"
+               placeholder="Buscar por identificación o nombre…">
+        <div class="btn-group">
+          <button class="btn btn-outline-primary" type="submit">Buscar</button>
+          <a class="btn btn-outline-danger" href="{{ url_for('empresas_index') }}">Limpiar</a>
+        </div>
+      </form>
+
+      {% if is_admin %}
+        <a href="{{ url_for('empresas_create') }}" class="btn btn-primary btn-sm">
+          Nueva empresa
+        </a>
+      {% endif %}
+    </div>
+
+    <div class="card shadow-sm">
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-striped align-middle m-0">
+            <thead class="table-light">
+              <tr>
+                <th>#</th>
+                <th>Identificación</th>
+                <th>Nombre / razón social</th>
+                <th class="text-end">
+                  {% if is_admin %}Acciones{% endif %}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for e in empresas %}
+              <tr>
+                <td>{{ e.id }}</td>
+                <td><code class="small">{{ e.identificacion }}</code></td>
+                <td>{{ e.nombre }}</td>
+                <td class="text-end">
+                  {% if is_admin %}
+                    <a class="btn btn-sm btn-outline-primary"
+                       href="{{ url_for('empresas_edit', empresa_id=e.id) }}">
+                      Editar
+                    </a>
+
+                    <form class="d-inline" method="POST"
+                          action="{{ url_for('empresas_delete', empresa_id=e.id) }}">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                      <button class="btn btn-sm btn-outline-danger" type="submit"
+                              onclick="return confirm('¿Eliminar empresa {{ e.nombre }}?');">
+                        Eliminar
+                      </button>
+                    </form>
+                  {% endif %}
+                </td>
+              </tr>
+              {% else %}
+              <tr>
+                <td colspan="{{ 4 if is_admin else 3 }}"
+                    class="text-center py-4 text-muted">
+                  Sin empresas registradas.
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}

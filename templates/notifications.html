@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Notificaciones{% endblock %}
+{% block content %}
+<h3 class="d-flex justify-content-between align-items-center">
+  <span>Notificaciones</span>
+
+  {% if rows %}
+  <form method="post" action="{{ url_for('notif_mark_all_read') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button class="btn btn-sm btn-outline-primary">
+      Marcar todas como leídas
+    </button>
+  </form>
+  {% endif %}
+</h3>
+
+<div class="list-group mt-3">
+  {% for n in rows %}
+    <div class="list-group-item">
+      <div class="d-flex justify-content-between">
+        <div>
+          {% set cls = {
+            'success':'text-success',
+            'warning':'text-warning',
+            'danger':'text-danger',
+            'info':'text-primary'
+          }.get(n.level, 'text-secondary') %}
+          <div class="fw-semibold">
+            <span class="{{ cls }}">{{ n.title }}</span>
+          </div>
+          {% if n.body %}
+            <div>{{ n.body }}</div>
+          {% endif %}
+          <div class="small text-muted">{{ n.created_at|to_colombia }}</div>
+        </div>
+        {% if not n.is_read %}
+        <form method="post" action="{{ url_for('notif_mark_read', notif_id=n.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="btn btn-sm btn-outline-secondary">Marcar leída</button>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+  {% else %}
+    <div class="text-muted">No tienes notificaciones.</div>
+  {% endfor %}
+</div>
+{% endblock %}

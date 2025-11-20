@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block title %}Equipos eliminados{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h3 class="m-0">Equipos eliminados</h3>
+  <div>
+    <a class="btn btn-outline-secondary" href="{{ url_for('equipos_index') }}">Volver a equipos</a>
+  </div>
+</div>
+
+<form class="row g-2 mb-3" method="get">
+  <div class="col-sm-6 col-md-5 col-lg-4">
+    <input name="q" value="{{ q or '' }}" class="form-control" placeholder="Buscar por código, serial, responsable, estado…">
+  </div>
+  <div class="col-auto">
+    <button class="btn btn-primary" type="submit">Buscar</button>
+  </div>
+  {% if q %}
+  <div class="col-auto">
+    <a class="btn btn-outline-secondary" href="{{ url_for('equipos_eliminados') }}">Limpiar</a>
+  </div>
+  {% endif %}
+</form>
+
+<div class="card shadow-sm">
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-striped align-middle m-0">
+        <thead class="table-light">
+          <tr>
+            <th style="width: 80px">#</th>
+            <th>Fecha</th>
+            <th>Código / Serial</th>
+            <th>Tipo / Marca-Modelo</th>
+            <th>Estado</th>
+            <th>Responsable</th>
+            <th>Actor</th>
+            <th>IP</th>
+          </tr>
+        </thead>
+        <tbody>
+            {% for r in rows %}
+            <tr>
+                <td>{{ r.id }}</td>
+                <td><small> {{ r.created_at|to_colombia }}</small></td> 
+                <td>
+                <div class="fw-semibold">{{ r.codigo_interno }}</div>
+                <div class="text-muted small">{{ r.serial or '—' }}</div>
+                </td>
+                <td>
+                <div>{{ r.tipo_equipo or '—' }}</div>
+                <div class="text-muted small">{{ r.marca or '—' }} {{ r.modelo or '' }}</div>
+                </td>
+                <td><span class="badge text-bg-secondary">{{ r.estado or '—' }}</span></td>
+                <td>
+                  <div>{{ r.responsable_entrega or '—' }}</div>
+                </td>
+
+                <td>{{ r.actor.username if r.actor else '—' }}</td>
+                <td><small class="text-muted">{{ r.ip or '—' }}</small></td>
+            </tr>
+            {% else %}
+            <!-- thead tiene 8 columnas, así que usa colspan=8 -->
+            <tr><td colspan="8" class="text-center py-4 text-muted">No hay equipos eliminados.</td></tr>
+            {% endfor %}
+            </tbody>
+
+      </table>
+    </div>
+  </div>
+</div>
+
+{% if total and total > size %}
+  {% set last_page = (total // size) + (1 if (total % size) else 0) %}
+  <nav class="mt-3">
+    <ul class="pagination pagination-sm mb-0">
+      <li class="page-item {% if page <= 1 %}disabled{% endif %}">
+        <a class="page-link" href="{{ url_for('equipos_eliminados', q=q, page=page-1, size=size) }}">«</a>
+      </li>
+      <li class="page-item disabled">
+        <span class="page-link">Página {{ page }} de {{ last_page }}</span>
+      </li>
+      <li class="page-item {% if page >= last_page %}disabled{% endif %}">
+        <a class="page-link" href="{{ url_for('equipos_eliminados', q=q, page=page+1, size=size) }}">»</a>
+      </li>
+    </ul>
+  </nav>
+{% endif %}
+{% endblock %}

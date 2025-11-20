@@ -1,0 +1,317 @@
+{% extends "base.html" %} 
+{% block title %}{{ 'Editar equipo' if is_edit else 'Nuevo equipo' }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-8 col-xl-7">
+    <div class="card shadow">
+      <div class="card-body">
+        <h3 class="mb-3">{{ 'Editar equipo' if is_edit else 'Nuevo equipo' }}</h3>
+
+        <form method="POST" novalidate>
+          {{ form.hidden_tag() }}
+
+          <div class="row g-3">
+            <!-- Código interno -->
+            <div class="col-md-6">
+              <label class="form-label" for="{{ form.codigo_interno.id }}">{{ form.codigo_interno.label }}</label>
+              {{ form.codigo_interno(
+                  class="form-control" + (' is-invalid' if form.codigo_interno.errors else ''),
+                  id=form.codigo_interno.id
+              ) }}
+              {% if form.codigo_interno.errors %}
+                {% for err in form.codigo_interno.errors %}
+                  <div class="invalid-feedback d-block">{{ err }}</div>
+                {% endfor %}
+              {% endif %}
+            </div>
+
+            <!-- Tipo equipo -->
+            <div class="col-md-6">
+              <label class="form-label" for="{{ form.tipo_equipo.id }}">{{ form.tipo_equipo.label }}</label>
+              {{ form.tipo_equipo(
+                  class="form-select" + (' is-invalid' if form.tipo_equipo.errors else ''),
+                  id=form.tipo_equipo.id
+              ) }}
+              {% if form.tipo_equipo.errors %}
+                {% for err in form.tipo_equipo.errors %}
+                  <div class="invalid-feedback d-block">{{ err }}</div>
+                {% endfor %}
+              {% endif %}
+            </div>
+
+            <!-- Marca -->
+            <div class="col-md-4">
+              <label class="form-label" for="{{ form.marca.id }}">{{ form.marca.label }}</label>
+              {{ form.marca(
+                  class="form-control" + (' is-invalid' if form.marca.errors else ''),
+                  id=form.marca.id
+              ) }}
+              {% if form.marca.errors %}
+                {% for err in form.marca.errors %}
+                  <div class="invalid-feedback d-block">{{ err }}</div>
+                {% endfor %}
+              {% endif %}
+            </div>
+
+            <!-- Modelo -->
+            <div class="col-md-4">
+              <label class="form-label" for="{{ form.modelo.id }}">{{ form.modelo.label }}</label>
+              {{ form.modelo(
+                  class="form-control" + (' is-invalid' if form.modelo.errors else ''),
+                  id=form.modelo.id
+              ) }}
+              {% if form.modelo.errors %}
+                {% for err in form.modelo.errors %}
+                  <div class="invalid-feedback d-block">{{ err }}</div>
+                {% endfor %}
+              {% endif %}
+            </div>
+
+            <!-- Serial -->
+            <div class="col-md-4">
+              <label class="form-label" for="{{ form.serial.id }}">{{ form.serial.label }}</label>
+              {{ form.serial(
+                  class="form-control" + (' is-invalid' if form.serial.errors else ''),
+                  id=form.serial.id
+              ) }}
+              {% if form.serial.errors %}
+                {% for err in form.serial.errors %}
+                  <div class="invalid-feedback d-block">{{ err }}</div>
+                {% endfor %}
+              {% endif %}
+            </div>
+
+            <!-- Empresa -->
+            <div class="col-md-6">
+              <label class="form-label" for="{{ form.empresa_id.id }}">{{ form.empresa_id.label }}</label>
+              {{ form.empresa_id(
+                  class="form-select" + (' is-invalid' if form.empresa_id.errors else ''),
+                  id=form.empresa_id.id
+              ) }}
+              {% if form.empresa_id.errors %}
+                {% for err in form.empresa_id.errors %}
+                  <div class="invalid-feedback d-block">{{ err }}</div>
+                {% endfor %}
+              {% endif %}
+            </div>
+
+            <!-- Responsable (filtrado por empresa vía JS) -->
+            <div class="col-md-6">
+              <label class="form-label" for="{{ form.responsable_id.id }}">{{ form.responsable_id.label }}</label>
+              {{ form.responsable_id(
+                  class="form-select" + (' is-invalid' if form.responsable_id.errors else ''),
+                  id=form.responsable_id.id
+              ) }}
+              {% if form.responsable_id.errors %}
+                {% for err in form.responsable_id.errors %}
+                  <div class="invalid-feedback d-block">{{ err }}</div>
+                {% endfor %}
+              {% endif %}
+              <div class="form-text">Los responsables están asociados a una empresa externa.</div>
+            </div>
+
+            <!-- Fecha de ingreso -->
+            <div class="col-md-6">
+              <label class="form-label" for="{{ form.fecha_ingreso.id }}">{{ form.fecha_ingreso.label }}</label>
+              {{ form.fecha_ingreso(
+                  class="form-control" + (' is-invalid' if form.fecha_ingreso.errors else ''),
+                  id=form.fecha_ingreso.id,
+                  placeholder="YYYY-MM-DDTHH:MM",
+                  max=form.fecha_salida.data|string if form.fecha_salida.data else None
+              ) }}
+              {% if form.fecha_ingreso.errors %}
+                {% for err in form.fecha_ingreso.errors %}
+                  <div class="invalid-feedback d-block">{{ err }}</div>
+                {% endfor %}
+              {% endif %}
+              <div class="form-text">Formato: 2025-10-28T08:30</div>
+            </div>
+
+            <!-- Fecha de salida (será bloqueada/obligatoria según estado por JS y backend) -->
+            <div class="col-md-6">
+              <label class="form-label" for="{{ form.fecha_salida.id }}">{{ form.fecha_salida.label }}</label>
+              {{ form.fecha_salida(
+                  class="form-control" + (' is-invalid' if form.fecha_salida.errors else ''),
+                  id=form.fecha_salida.id,
+                  placeholder="YYYY-MM-DDTHH:MM",
+                  min=form.fecha_ingreso.data|string if form.fecha_ingreso.data else None
+              ) }}
+              {% if form.fecha_salida.errors %}
+                {% for err in form.fecha_salida.errors %}
+                  <div class="invalid-feedback d-block">{{ err }}</div>
+                {% endfor %}
+              {% endif %}
+              <div class="form-text">Solo permitido en "aprobado" o "devuelto".</div>
+            </div>
+
+            <!-- Estado -->
+            <div class="col-md-4">
+              <label class="form-label" for="{{ form.estado.id }}">{{ form.estado.label }}</label>
+              {{ form.estado(
+                  class="form-select" + (' is-invalid' if form.estado.errors else ''),
+                  id=form.estado.id
+              ) }}
+              {% if form.estado.errors %}
+                {% for err in form.estado.errors %}
+                  <div class="invalid-feedback d-block">{{ err }}</div>
+                {% endfor %}
+              {% endif %}
+              <div class="form-text">En creación no se permite "devuelto".</div>
+            </div>
+
+            <!-- Autorizado por -->
+            <div class="col-md-4">
+              <label class="form-label" for="{{ form.autorizado_por.id }}">{{ form.autorizado_por.label }}</label>
+              {{ form.autorizado_por(
+                  class="form-select" + (' is-invalid' if form.autorizado_por.errors else ''),
+                  id=form.autorizado_por.id
+              ) }}
+              {% if form.autorizado_por.errors %}
+                {% for err in form.autorizado_por.errors %}
+                  <div class="invalid-feedback d-block">{{ err }}</div>
+                {% endfor %}
+              {% endif %}
+              <div class="form-text">Se muestra identificación y usuario (rol "usuario").</div>
+            </div>
+
+            <!-- Observaciones -->
+            <div class="col-12">
+              <label class="form-label" for="{{ form.observaciones.id }}">{{ form.observaciones.label }}</label>
+              {{ form.observaciones(
+                  class="form-control" + (' is-invalid' if form.observaciones.errors else ''),
+                  rows="4",
+                  id=form.observaciones.id
+              ) }}
+              {% if form.observaciones.errors %}
+                {% for err in form.observaciones.errors %}
+                  <div class="invalid-feedback d-block">{{ err }}</div>
+                {% endfor %}
+              {% endif %}
+            </div>
+          </div>
+
+          <div class="d-flex gap-2 mt-4">
+            {{ form.submit(class="btn btn-primary") }}
+            <a href="{{ url_for('equipos_index') }}" class="btn btn-outline-secondary">Cancelar</a>
+          </div>
+        </form>
+
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block body_extra %}
+<script>
+(function() {
+  // ==================== Reglas de estado y fechas ====================
+  const estado = document.getElementById("{{ form.estado.id }}");
+  const fin    = document.getElementById("{{ form.fecha_ingreso.id }}");
+  const fs     = document.getElementById("{{ form.fecha_salida.id }}");
+
+  function applyRules() {
+    if (!estado || !fs) return;
+
+    const est = (estado.value || "").trim();
+
+    // limpiar restricciones previas
+    fs.removeAttribute("min");
+    fs.removeAttribute("max");
+    fs.removeAttribute("required");
+
+    if (est === "pendiente" || est === "en_revision") {
+      // no se permite salida
+      fs.value = "";
+      fs.setAttribute("disabled", "disabled");
+    } else {
+      fs.removeAttribute("disabled");
+
+      // coherencia: salida >= ingreso si hay ingreso
+      if (fin && fin.value) {
+        fs.setAttribute("min", fin.value);
+      }
+
+      // en devuelto la salida debe ser obligatoria (el backend también lo valida)
+      if (est === "devuelto") {
+        fs.setAttribute("required", "required");
+      }
+    }
+  }
+
+  if (estado) estado.addEventListener("change", applyRules);
+  if (fin)    fin.addEventListener("change", applyRules);
+
+  // aplicar al cargar
+  applyRules();
+
+
+  // ==================== Filtro dinámico de responsables ====================
+  const empresaSelect     = document.getElementById("{{ form.empresa_id.id }}");
+  const responsableSelect = document.getElementById("{{ form.responsable_id.id }}");
+
+  {% if responsables is defined %}
+    {% set resp_list = [] %}
+    {% for r in responsables %}
+      {% set _ = resp_list.append({
+        "id": r.id,
+        "empresa_id": r.empresa_id,
+        "label": r.id_responsable ~ " — " ~ r.nombre_responsable ~ " (" ~ r.empresa.nombre ~ ")"
+      }) %}
+    {% endfor %}
+    const allResponsables = {{ resp_list|tojson }};
+  {% else %}
+    const allResponsables = [];
+  {% endif %}
+
+  function refillResponsables() {
+    if (!empresaSelect || !responsableSelect) return;
+
+    const empresaId    = parseInt(empresaSelect.value || "0", 10);
+    const currentValue = parseInt(responsableSelect.value || "0", 10);
+
+    // Limpiar opciones actuales
+    while (responsableSelect.firstChild) {
+      responsableSelect.removeChild(responsableSelect.firstChild);
+    }
+
+    // Filtrar responsables por empresa seleccionada
+    const filtered = allResponsables.filter(r => r.empresa_id === empresaId);
+
+    if (filtered.length === 0) {
+      const opt = document.createElement("option");
+      opt.value = "";
+      opt.textContent = "— Sin responsables para esta empresa —";
+      responsableSelect.appendChild(opt);
+      responsableSelect.value = "";
+      return;
+    }
+
+    filtered.forEach(r => {
+      const opt = document.createElement("option");
+      opt.value = r.id;
+      opt.textContent = r.label;
+      responsableSelect.appendChild(opt);
+    });
+
+    // Intentar mantener la selección previa si sigue siendo válida
+    const exists = filtered.some(r => r.id === currentValue);
+    if (exists && currentValue) {
+      responsableSelect.value = String(currentValue);
+    } else {
+      // Por defecto el primero
+      responsableSelect.selectedIndex = 0;
+    }
+  }
+
+  if (empresaSelect) {
+    empresaSelect.addEventListener("change", refillResponsables);
+  }
+
+  // Aplicar al cargar (sirve tanto para crear como para editar)
+  refillResponsables();
+
+})();
+</script>
+{% endblock %}

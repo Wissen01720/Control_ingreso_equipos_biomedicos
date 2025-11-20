@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block title %}Responsables de entrega{% endblock %}
+
+{% block content %}
+{% set is_admin = (current_user.role == 'admin') %}
+
+<div class="row justify-content-center">
+  <div class="col-lg-11">
+    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+      <div class="d-flex align-items-center gap-2">
+        <h3 class="m-0">Responsables de entrega</h3>
+        {% if not is_admin %}
+          <span class="badge text-bg-secondary">Solo lectura</span>
+        {% endif %}
+      </div>
+
+      <form class="d-flex gap-2" method="get" action="{{ url_for('responsables_index') }}">
+        <input class="form-control" name="q" value="{{ q or '' }}"
+               placeholder="Buscar por ID, nombre, correo o empresa…">
+        <div class="btn-group">
+          <button class="btn btn-outline-primary" type="submit">Buscar</button>
+          <a class="btn btn-outline-danger" href="{{ url_for('responsables_index') }}">Limpiar</a>
+        </div>
+      </form>
+
+      {% if is_admin %}
+        <a class="btn btn-primary" href="{{ url_for('responsables_create') }}">
+          Nuevo responsable
+        </a>
+      {% endif %}
+    </div>
+
+    <div class="card shadow-sm">
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-striped align-middle m-0">
+            <thead class="table-light">
+              <tr>
+                <th>#</th>
+                <th>ID responsable</th>
+                <th>Nombre</th>
+                <th>Correo</th>
+                <th>Empresa</th>
+                <th class="text-end">
+                  {% if is_admin %}Acciones{% endif %}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for r in responsables %}
+              <tr>
+                <td>{{ r.id }}</td>
+                <td><code class="small">{{ r.id_responsable }}</code></td>
+                <td>{{ r.nombre_responsable }}</td>
+                <td>
+                  {% if r.correo_responsable %}
+                    <a href="mailto:{{ r.correo_responsable }}">{{ r.correo_responsable }}</a>
+                  {% else %}
+                    —
+                  {% endif %}
+                </td>
+                <td>
+                  {% if r.empresa %}
+                    {{ r.empresa.identificacion }} — {{ r.empresa.nombre }}
+                  {% else %}
+                    —
+                  {% endif %}
+                </td>
+                <td class="text-end">
+                  {% if is_admin %}
+                    <a class="btn btn-sm btn-outline-primary"
+                       href="{{ url_for('responsables_edit', resp_id=r.id) }}">
+                      Editar
+                    </a>
+
+                    <form class="d-inline" method="POST"
+                          action="{{ url_for('responsables_delete', resp_id=r.id) }}">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                      <button class="btn btn-sm btn-outline-danger" type="submit"
+                              onclick="return confirm('¿Eliminar responsable {{ r.nombre_responsable }}?');">
+                        Eliminar
+                      </button>
+                    </form>
+                  {% endif %}
+                </td>
+              </tr>
+              {% else %}
+              <tr>
+                <td colspan="{{ 6 if is_admin else 5 }}"
+                    class="text-center py-4 text-muted">
+                  Sin responsables registrados.
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}

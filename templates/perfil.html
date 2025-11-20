@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% block title %}Perfil{% endblock %}
+
+{% block content %}
+<div class="row g-4 justify-content-center">
+
+  <!-- Panel principal de perfil -->
+  <div class="col-12 col-lg-8">
+    <div class="card shadow-sm border-0">
+
+      <!-- Encabezado tipo dashboard -->
+      <div class="card-body d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-3">
+        <div class="d-flex align-items-center gap-3">
+          <span class="d-inline-flex align-items-center justify-content-center bg-primary text-white rounded-circle"
+                style="width: 46px; height: 46px;">
+            <i class="bi bi-person-circle fs-4"></i>
+          </span>
+          <div>
+            <h3 class="mb-1">Hola, {{ data.nombre }}</h3>
+            <p class="mb-2 text-muted small mb-0">
+              Este es el resumen de tu perfil en el sistema PDS-006.
+            </p>
+            <span class="badge rounded-pill
+                         {% if current_user.role == 'admin' %}
+                           bg-danger-subtle text-danger-emphasis border border-danger-subtle
+                         {% else %}
+                           bg-primary-subtle text-primary-emphasis border border-primary-subtle
+                         {% endif %}">
+              <i class="bi bi-person-badge me-1"></i>
+              Rol: {{ current_user.role|capitalize }}
+            </span>
+          </div>
+        </div>
+
+        <div class="text-muted small text-md-end">
+          <div class="fw-semibold">
+            <i class="bi bi-shield-lock me-1"></i>Cuenta segura
+          </div>
+          <div>Tu correo registrado es <strong>{{ data.correo }}</strong></div>
+        </div>
+      </div>
+
+      <!-- Detalle en formato de ficha -->
+      <div class="card-body border-top">
+        <dl class="row mb-0">
+          <dt class="col-sm-4 text-muted small">Nombre de usuario</dt>
+          <dd class="col-sm-8 fw-semibold mb-2">
+            {{ data.nombre }}
+          </dd>
+
+          <dt class="col-sm-4 text-muted small">Correo institucional</dt>
+          <dd class="col-sm-8 fw-semibold mb-2">
+            {{ data.correo }}
+          </dd>
+
+          <dt class="col-sm-4 text-muted small">Rol en el sistema</dt>
+          <dd class="col-sm-8 mb-0">
+            <span class="badge bg-body-secondary text-muted border small">
+              <i class="bi bi-person-gear me-1"></i>{{ current_user.role|capitalize }}
+            </span>
+          </dd>
+        </dl>
+      </div>
+
+      <!-- Acciones -->
+      <div class="card-footer bg-body-tertiary border-0 d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <div class="d-flex flex-wrap gap-2">
+          <a class="btn btn-sm btn-primary" href="{{ url_for('self_edit_profile') }}">
+            <i class="bi bi-pencil-square me-1"></i> Editar perfil
+          </a>
+          <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('my_audit') }}">
+            <i class="bi bi-clock-history me-1"></i> Ver auditoría
+          </a>
+        </div>
+        <small class="text-muted d-flex align-items-center gap-1">
+          <i class="bi bi-info-circle"></i>
+          Los cambios que realices quedarán registrados en la auditoría.
+        </small>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Panel lateral tipo "tips" para mantener estética del dashboard -->
+  <div class="col-12 col-lg-4">
+    <div class="card shadow-sm border-0 mb-3">
+      <div class="card-body">
+        <h6 class="fw-semibold mb-2">
+          <i class="bi bi-person-check me-1"></i> Recomendaciones de perfil
+        </h6>
+        <ul class="small text-muted mb-0">
+          <li>Verifica que tu nombre de usuario y correo estén escritos correctamente.</li>
+          <li>Mantén tu información actualizada para una mejor trazabilidad.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="card shadow-sm border-0">
+      <div class="card-body">
+        <h6 class="fw-semibold mb-2">
+          <i class="bi bi-shield-check me-1"></i> Seguridad de la cuenta
+        </h6>
+        <ul class="small text-muted mb-0">
+          <li>No compartas tus credenciales con otras personas.</li>
+          <li>Cierra sesión al terminar de usar el sistema.</li>
+          <li>Revisa periódicamente tu historial en <strong>“Ver auditoría”</strong>.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

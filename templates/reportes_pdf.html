@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>Reporte de Equipos</title>
+  <style>
+    /* ===== Configuración de página y frames ===== */
+    @page {
+      size: A4 landscape;
+
+      /* Margen “real” del contenido */
+      margin: 0;
+
+      /* Encabezado estático */
+      @frame header_frame {
+        -pdf-frame-content: header_content;
+        left: 1.5cm;  width: 26.7cm;
+        top: 1.0cm;   height: 3.0cm;
+      }
+
+      /* Contenido (tabla, filtros, etc.) */
+      @frame content_frame {
+        left: 1.5cm;  width: 26.7cm;
+        top: 4.2cm;   height: 14.5cm;
+      }
+
+      /* Pie de página estático (paginación) */
+      @frame footer_frame {
+        -pdf-frame-content: footer_content;
+        left: 1.5cm;  width: 26.7cm;
+        top: 19.0cm;  height: 1.5cm;
+      }
+    }
+
+    body {
+      font-family: DejaVu Sans, Arial, Helvetica, sans-serif;
+      font-size: 9pt;
+      color: #333;
+    }
+
+    /* ===== Encabezado institucional (logo + textos) ===== */
+    .header-box {
+      text-align: center;
+      border-bottom: 1px solid #999;
+      padding-bottom: 0.15cm;
+    }
+    .header-logo {
+      margin-bottom: 0.05cm;
+    }
+    /*  xhtml2pdf  */
+    .header-text-main {
+      font-size: 11pt;
+      font-weight: bold;
+    }
+    .header-text-sub {
+      font-size: 9pt;
+      margin-top: 2px;
+    }
+    .header-app {
+      font-size: 8.5pt;
+      margin-top: 3px;
+      font-weight: bold;
+    }
+
+    h2 {
+      text-align: center;
+      margin: 0.1cm 0 0.35cm 0;
+      font-size: 13pt;
+    }
+
+    .meta,
+    .filtros {
+      font-size: 8.5pt;
+      margin-bottom: 0.2cm;
+    }
+    .filtros {
+      margin-bottom: 0.35cm;
+    }
+
+    /* ===== Tabla de datos ===== */
+    table.report {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 8.3pt;
+      table-layout: fixed;
+    }
+    table.report th,
+    table.report td {
+      border: 0.5pt solid #999;
+      padding: 3px 2px;
+      vertical-align: top;
+      word-wrap: break-word;
+      word-break: break-word;
+    }
+    table.report th {
+      background: #f0f0f0;
+      text-align: center;
+    }
+    table.report td {
+      text-align: left;
+    }
+
+    .col-codigo  { width: 7%; }
+    .col-tipo    { width: 8%; }
+    .col-marca   { width: 9%; }
+    .col-modelo  { width: 11%; }
+    .col-serial  { width: 13%; }
+    .col-empresa { width: 14%; }
+    .col-resp    { width: 17%; }
+    .col-fecha   { width: 9%; }
+    .col-estado  { width: 6%; }
+
+    .serial-cell {
+      word-wrap: break-word;
+      word-break: break-word;
+    }
+
+    /* ===== Pie de página ===== */
+    .footer-box {
+      font-size: 8pt;
+      color: #666;
+      border-top: 1px solid #ccc;
+      padding-top: 2px;
+    }
+    .footer-table {
+      width: 100%;
+    }
+    .footer-table td {
+      vertical-align: middle;
+    }
+    .footer-left {
+      text-align: left;
+    }
+    .footer-right {
+      text-align: right;
+      white-space: nowrap;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- CONTENIDO ESTÁTICO DEL ENCABEZADO (frame header_frame) -->
+  <div id="header_content">
+    <div class="header-box">
+      <div class="header-logo">
+        <!-- tamaño del logo FORZADO inline para que xhtml2pdf lo respete -->
+        <img src="{{ logo_url }}" alt="Logo USTA"
+             style="height: 45px; width: auto;" />
+      </div>
+      <div class="header-text-main">Universidad Santo Tomás</div>
+      <div class="header-text-sub">
+        Electiva Seguridad en el desarrollo de software - 2025-2
+      </div>
+      <div class="header-app">
+        PDS-006 · Sistema para control de ingreso de equipos tecnológicos y biomédicos externos
+      </div>
+    </div>
+  </div>
+
+  <!-- CONTENIDO ESTÁTICO DEL PIE (frame footer_frame) -->
+  <div id="footer_content">
+    <div class="footer-box">
+      <table class="footer-table">
+        <tr>
+          <td class="footer-left">
+            PDS-006 · Control de ingreso de equipos tecnológicos y biomédicos externos
+          </td>
+          <td class="footer-right">
+            Página <pdf:pagenumber>
+            de <pdf:pagecount>
+          </td>
+        </tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- CONTENIDO PRINCIPAL (frame content_frame) -->
+  <div id="content_frame">
+    <h2>Reporte de Equipos</h2>
+
+    <div class="meta">
+      <strong>Generado:</strong> {{ generado }}
+    </div>
+
+    <div class="filtros">
+      <strong>Filtros aplicados:</strong><br>
+      <strong>Fecha desde:</strong> {{ filtros.fecha_desde }} &nbsp;&nbsp;
+      <strong>Fecha hasta:</strong> {{ filtros.fecha_hasta }}<br>
+      <strong>Estado:</strong> {{ filtros.estado }} &nbsp;&nbsp;
+      <strong>Tipo de equipo:</strong> {{ filtros.tipo_equipo }}<br>
+      <strong>Empresa:</strong> {{ filtros.empresa }}
+    </div>
+
+    <table class="report">
+      <thead>
+        <tr>
+          <th class="col-codigo">Código interno</th>
+          <th class="col-tipo">Tipo</th>
+          <th class="col-marca">Marca</th>
+          <th class="col-modelo">Modelo</th>
+          <th class="col-serial">Serial</th>
+          <th class="col-empresa">Empresa</th>
+          <th class="col-resp">Responsable</th>
+          <th class="col-fecha">Fecha ingreso</th>
+          <th class="col-fecha">Fecha salida</th>
+          <th class="col-estado">Estado</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% if equipos %}
+          {% for e in equipos %}
+            <tr>
+              <td>{{ e.codigo_interno or '—' }}</td>
+              <td>
+                {% if e.tipo_equipo == 'tecnologico' %}
+                  Tecnológico
+                {% elif e.tipo_equipo == 'biomedico' %}
+                  Biomédico
+                {% else %}
+                  {{ e.tipo_equipo or '—' }}
+                {% endif %}
+              </td>
+              <td>{{ e.marca or '—' }}</td>
+              <td>{{ e.modelo or '—' }}</td>
+              <td class="serial-cell">{{ e.serial or '—' }}</td>
+              <td>{{ e.empresa.nombre if e.empresa else '—' }}</td>
+              <td>
+                {% if e.responsable %}
+                  {{ e.responsable.id_responsable }} - {{ e.responsable.nombre_responsable }}
+                {% else %}
+                  — 
+                {% endif %}
+              </td>
+              <td>{{ e.fecha_ingreso.strftime('%Y-%m-%d') if e.fecha_ingreso else '—' }}</td>
+              <td>{{ e.fecha_salida.strftime('%Y-%m-%d') if e.fecha_salida else '—' }}</td>
+              <td>
+                {% if e.estado == 'en_revision' %}
+                  En revisión
+                {% else %}
+                  {{ e.estado|capitalize }}
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        {% else %}
+          <tr>
+            <td colspan="10">No hay equipos para los filtros seleccionados.</td>
+          </tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+
+</body>
+</html>

@@ -1,0 +1,289 @@
+{% extends "base.html" %}
+{% block title %}Reportes{% endblock %}
+
+{% block head_extra %}
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+  <div class="col-12">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+      <div>
+        <h3 class="mb-0">Reportes</h3>
+        <p class="text-muted mb-0 small">
+          Visualiza estadísticas y exporta información según los filtros seleccionados.
+        </p>
+      </div>
+      <span class="badge rounded-pill text-bg-primary-subtle text-primary-emphasis border border-primary-subtle">
+        <i class="bi bi-graph-up-arrow me-1"></i> Módulo de reportes
+      </span>
+    </div>
+  </div>
+
+  <!-- Filtros + exportación -->
+  <div class="col-lg-4">
+    <div class="card shadow-sm border-0 h-100">
+      <div class="card-header bg-transparent border-0 pb-0">
+        <h5 class="card-title mb-1">
+          <i class="bi bi-funnel me-1"></i> Filtros
+        </h5>
+        <p class="text-muted small mb-2">
+          Define periodo y criterios para el análisis.
+        </p>
+      </div>
+      <div class="card-body">
+        {% set filtros = filtros or {} %}
+        <form id="reportFilters" class="row g-3">
+          <div class="col-12">
+            <label class="form-label small mb-1">Rango de fechas (ingreso)</label>
+            <div class="d-flex gap-2">
+              <input
+                type="date"
+                class="form-control"
+                name="fecha_desde"
+                value="{{ filtros.fecha_desde or '' }}"
+              >
+              <input
+                type="date"
+                class="form-control"
+                name="fecha_hasta"
+                value="{{ filtros.fecha_hasta or '' }}"
+              >
+            </div>
+          </div>
+
+          <div class="col-12">
+            <label class="form-label small" for="estado">Estado</label>
+            {% set estado_sel = filtros.estado or '' %}
+            <select class="form-select" id="estado" name="estado">
+              <option value="" {{ '' == estado_sel and 'selected' or '' }}>Todos</option>
+              {% for est in estado_choices %}
+                <option value="{{ est }}" {{ est == estado_sel and 'selected' or '' }}>
+                  {# Bonito: 'en_revision' -> 'En revisión' #}
+                  {{ est.replace('_', ' ')|capitalize }}
+                </option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="col-12">
+            <label class="form-label small" for="tipo_equipo">Tipo de equipo</label>
+            {% set tipo_sel = filtros.tipo_equipo or '' %}
+            <select class="form-select" id="tipo_equipo" name="tipo_equipo">
+              <option value="" {{ '' == tipo_sel and 'selected' or '' }}>Todos</option>
+              {% for t in tipo_equipo_choices %}
+                <option value="{{ t }}" {{ t == tipo_sel and 'selected' or '' }}>
+                  {% if t == 'tecnologico' %}
+                    Tecnológico
+                  {% elif t == 'biomedico' %}
+                    Biomédico
+                  {% else %}
+                    {{ t|capitalize }}
+                  {% endif %}
+                </option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="col-12">
+            <label class="form-label small" for="empresa">Empresa externa</label>
+            {% set empresa_sel = filtros.empresa_id or '' %}
+            <select class="form-select" id="empresa" name="empresa_id">
+              <option value="" {{ '' == empresa_sel and 'selected' or '' }}>Todas</option>
+              {% for e in empresas %}
+                <option
+                  value="{{ e.id }}"
+                  {{ (e.id|string) == empresa_sel and 'selected' or '' }}
+                >
+                  {{ e.identificacion }} — {{ e.nombre }}
+                </option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="col-12 d-flex flex-wrap gap-2">
+            <button type="submit" class="btn btn-primary btn-sm">
+              <i class="bi bi-sliders me-1"></i> Aplicar filtros
+            </button>
+            <button type="button" id="btnLimpiar" class="btn btn-outline-secondary btn-sm">
+              <i class="bi bi-eraser me-1"></i> Limpiar
+            </button>
+          </div>
+
+          <div class="col-12">
+            <hr class="my-2">
+            <label class="form-label small d-block mb-1">Exportar datos</label>
+            <div class="btn-group btn-group-sm w-100" role="group">
+              <button type="button" class="btn btn-outline-secondary" id="btnExportPdf">
+                <i class="bi bi-file-earmark-pdf me-1"></i> PDF
+              </button>
+              <button type="button" class="btn btn-outline-secondary" id="btnExportCsv">
+                <i class="bi bi-filetype-csv me-1"></i> CSV
+              </button>
+              <button type="button" class="btn btn-outline-secondary" id="btnExportXlsx">
+                <i class="bi bi-file-earmark-excel me-1"></i> XLSX
+              </button>
+            </div>
+            <div class="form-text">
+              Se usarán los filtros actuales para generar el archivo (CSV / XLSX ya implementado).
+            </div>
+          </div>
+
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Gráficos -->
+  <div class="col-lg-8">
+    <div class="card shadow-sm border-0 mb-3">
+      <div class="card-header bg-transparent border-0 pb-0 d-flex justify-content-between align-items-center">
+        <div>
+          <h5 class="card-title mb-1">
+            <i class="bi bi-pie-chart me-1"></i> Equipos por estado
+          </h5>
+          <p class="text-muted small mb-0">
+            Distribución de equipos según su estado actual.
+          </p>
+        </div>
+      </div>
+      <div class="card-body">
+        <canvas id="chartEstados" height="140"></canvas>
+      </div>
+    </div>
+
+    <div class="card shadow-sm border-0">
+      <div class="card-header bg-transparent border-0 pb-0 d-flex justify-content-between align-items-center">
+        <div>
+          <h5 class="card-title mb-1">
+            <i class="bi bi-bar-chart-line me-1"></i> Equipos por empresa
+          </h5>
+          <p class="text-muted small mb-0">
+            Top de empresas con más equipos registrados.
+          </p>
+        </div>
+      </div>
+      <div class="card-body">
+        <canvas id="chartEmpresas" height="160"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block body_extra %}
+<script>
+  // ========= Datos desde backend =========
+  {% set default_por_estado = {} %}
+  {% if stats is defined and stats.por_estado is not none %}
+    {% set por_estado = stats.por_estado %}
+  {% else %}
+    {% set por_estado = default_por_estado %}
+  {% endif %}
+
+  {% set default_empresas = [] %}
+  {% if stats is defined and stats.por_empresa is not none %}
+    {% set por_empresa = stats.por_empresa %}
+  {% else %}
+    {% set por_empresa = default_empresas %}
+  {% endif %}
+
+  const dataEstados = {{ por_estado|tojson }};
+  const dataEmpresas = {{ por_empresa|tojson }};
+
+  const ctxEstados  = document.getElementById('chartEstados');
+  const ctxEmpresas = document.getElementById('chartEmpresas');
+
+  // ========= Gráfico: estados =========
+  if (ctxEstados) {
+    const labelsEstados = Object.keys(dataEstados);
+    const valuesEstados = Object.values(dataEstados);
+
+    new Chart(ctxEstados, {
+      type: 'doughnut',
+      data: {
+        labels: labelsEstados,
+        datasets: [{
+          data: valuesEstados
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: { position: 'bottom' }
+        }
+      }
+    });
+  }
+
+  // ========= Gráfico: empresas =========
+  if (ctxEmpresas) {
+    const labelsEmp = dataEmpresas.map(e => e.nombre || '—');
+    const valuesEmp = dataEmpresas.map(e => e.total || 0);
+
+    new Chart(ctxEmpresas, {
+      type: 'bar',
+      data: {
+        labels: labelsEmp,
+        datasets: [{
+          data: valuesEmp
+        }]
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        plugins: {
+          legend: { display: false }
+        },
+        scales: {
+          x: {
+            beginAtZero: true,
+            ticks: { precision: 0 }
+          }
+        }
+      }
+    });
+  }
+
+  // ========= Filtros: limpiar y submit =========
+  const formFilters = document.getElementById('reportFilters');
+  const btnLimpiar  = document.getElementById('btnLimpiar');
+
+  if (btnLimpiar && formFilters) {
+    btnLimpiar.addEventListener('click', () => {
+      // Limpiar formulario y recargar sin querystring
+      formFilters.reset();
+      window.location = "{{ url_for('reportes') }}";
+    });
+  }
+
+  if (formFilters) {
+    formFilters.addEventListener('submit', function (ev) {
+      ev.preventDefault();
+      const params = new URLSearchParams(new FormData(formFilters));
+      window.location = "{{ url_for('reportes') }}" + "?" + params.toString();
+    });
+  }
+
+  // ========= Exportar (usa la misma ruta /reportes con ?format=) =========
+  function buildQueryWithFormat(fmt) {
+    const params = new URLSearchParams(new FormData(formFilters || undefined));
+    params.set('format', fmt);
+    return params.toString();
+  }
+
+  function handleExport(fmt) {
+    const qs = buildQueryWithFormat(fmt);
+    window.location = "{{ url_for('reportes') }}" + "?" + qs;
+  }
+
+  const btnPdf  = document.getElementById('btnExportPdf');
+  const btnCsv  = document.getElementById('btnExportCsv');
+  const btnXlsx = document.getElementById('btnExportXlsx');
+
+  if (btnPdf)  btnPdf.addEventListener('click', () => handleExport('pdf'));  
+  if (btnCsv)  btnCsv.addEventListener('click', () => handleExport('csv'));
+  if (btnXlsx) btnXlsx.addEventListener('click', () => handleExport('xlsx'));
+</script>
+{% endblock %}

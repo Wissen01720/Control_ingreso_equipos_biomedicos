@@ -1,0 +1,264 @@
+{% extends "base.html" %}
+{% block title %}Equipos{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-11">
+    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+      <h3 class="m-0">Equipos</h3>
+
+      <form class="d-flex gap-2" method="get" action="{{ url_for('equipos_index') }}">
+        <input class="form-control" name="q" value="{{ q or '' }}" placeholder="Buscar código, marca, modelo, empresa…">
+        <div class="btn-group">
+          <button class="btn btn-outline-primary" type="submit">Buscar</button>
+          <a class="btn btn-outline-danger" href="{{ url_for('equipos_index') }}">Limpiar</a>
+        </div>
+      </form>
+
+            {% if current_user.role == 'admin' %}
+      <div class="d-flex gap-2">
+        <a class="btn btn-primary" href="{{ url_for('equipos_create') }}">Nuevo equipo</a>
+
+        <form method="POST"
+              action="{{ url_for('equipos_delete_all') }}"
+              onsubmit="return confirm('⚠️ Esta acción eliminará TODOS los equipos registrados.\n\nNo se puede deshacer.\n\n¿Seguro que deseas continuar?');">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" class="btn btn-outline-danger">
+            <i class="bi bi-trash3"></i> Eliminar todos
+          </button>
+        </form>
+
+        {#  Eliminar equipos que coinciden con el filtro actual #}
+        <form method="POST"
+              action="{{ url_for('equipos_delete_filtered') }}"
+              onsubmit="return confirm('⚠️ Esta acción eliminará TODOS los equipos que coinciden con el filtro actual ({{ q or 'sin filtro' }}).\n\nNo se puede deshacer.\n\n¿Seguro que deseas continuar?');">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="q" value="{{ q or '' }}">
+          <button type="submit" class="btn btn-outline-danger">
+            <i class="bi bi-trash3"></i> Eliminar equipos filtrados
+          </button>
+        </form>
+
+      </div>
+      {% endif %}
+
+    </div>
+
+    <div class="card shadow-sm">
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-striped align-middle m-0">
+            <thead class="table-light">
+              <tr>
+                <th>#</th>
+                <th>Código</th>
+                <th>Tipo</th>
+                <th>Marca/Modelo</th>
+                <th>Empresa</th>
+                <th>Estado</th>
+                <th>Ingreso</th>
+                <th class="text-end">Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for e in equipos %}
+              <tr>
+                <td>{{ e.id }}</td>
+                <td>{{ e.codigo_interno }}</td>
+                <td><span class="badge text-bg-secondary">{{ e.tipo_equipo }}</span></td>
+                <td>{{ e.marca or '-' }} / {{ e.modelo or '-' }}</td>
+                <td>{{ e.empresa.nombre if e.empresa else '—' }}</td>
+                <td><span class="badge text-bg-info">{{ e.estado }}</span></td>
+                <td><small>{{ e.fecha_ingreso }}</small></td>
+                <td class="text-end">
+                  <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('equipos_show', equipo_id=e.id) }}">Ver</a>
+                  {% if current_user.role == 'admin' %}
+                    <a class="btn btn-sm btn-outline-primary" href="{{ url_for('equipos_edit', equipo_id=e.id) }}">Editar</a>
+                    <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('audit_equipo_show', equipo_id=e.id) }}"> Auditoría </a>
+
+                    <form class="d-inline delete-equipo-form"
+                          method="POST"
+                          action="{{ url_for('equipos_delete', equipo_id=e.id) }}">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                      <!-- campos ocultos para validar el captcha en el backend -->
+                      <input type="hidden" name="cap_a">
+                      <input type="hidden" name="cap_b">
+                      <input type="hidden" name="cap_op">
+                      <input type="hidden" name="cap_result">
+
+                      <button type="button"
+                              class="btn btn-sm btn-outline-danger"
+                              onclick="openDeleteEquipoModal(this, '{{ e.codigo_interno }}')">
+                        Eliminar
+                      </button>
+                    </form>
+
+                  {% endif %}
+                </td>
+              </tr>
+              {% else %}
+              <tr><td colspan="8" class="text-center py-4 text-muted">Sin resultados.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="d-flex justify-content-between align-items-center mt-3">
+      <div class="text-muted small">Total: {{ total }}</div>
+      <div class="btn-group">
+        {% if page > 1 %}
+          <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('equipos_index', page=page-1, size=size, q=q) }}">« Anterior</a>
+        {% endif %}
+        {% if page*size < total %}
+          <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('equipos_index', page=page+1, size=size, q=q) }}">Siguiente »</a>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+
+
+
+<!-- Modal confirmación con operación -->
+<div class="modal fade" id="deleteEquipoModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-wide">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Confirmar eliminación</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+  <p class="mb-3">
+    Vas a eliminar el equipo <strong id="delete-equipo-code"></strong>.
+    Esta acción <strong>no se puede deshacer</strong>.
+  </p>
+
+  <p class="mb-3">
+    Para confirmar, resuelve la siguiente operación:
+  </p>
+
+  <!-- Caja bonita para la operación -->
+  <div class="text-center mb-3">
+    <div class="small text-muted mb-1">Operación de seguridad</div>
+    <div class="captcha-op d-inline-flex align-items-center justify-content-center">
+      <span id="delete-captcha-op"></span>
+      <span class="ms-1">= ?</span>
+    </div>
+  </div>
+
+  <!-- Input centrado -->
+  <div class="d-flex justify-content-center mb-2">
+    <input id="delete-captcha-input"
+           type="number"
+           class="form-control form-control-sm text-center captcha-input"
+           placeholder="Escribe el resultado">
+  </div>
+
+  <div id="delete-captcha-error" class="text-danger small text-center d-none">
+    Resultado incorrecto. Inténtalo de nuevo.
+  </div>
+</div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-danger btn-sm" onclick="confirmDeleteEquipoCaptcha()">
+          Sí, eliminar
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+  let deleteEquipoForm = null;
+  let capA = 0;
+  let capB = 0;
+  let capOp = "+";
+
+  function openDeleteEquipoModal(button, codigo) {
+    deleteEquipoForm = button.closest('form');
+
+    // Generar dos números aleatorios (1 a 9)
+    capA = Math.floor(Math.random() * 9) + 1;
+    capB = Math.floor(Math.random() * 9) + 1;
+
+    // Elegir aleatoriamente la operación
+    const operaciones = ["+", "-", "×", "÷"];
+    capOp = operaciones[Math.floor(Math.random() * operaciones.length)];
+
+    // Evitar divisiones no enteras o por cero
+    if (capOp === "÷") {
+      capB = [1, 2, 3].includes(capB) ? capB : 1 + Math.floor(Math.random() * 3);
+      capA = capB * (1 + Math.floor(Math.random() * 3)); // garantiza entero
+    }
+
+    // Mostrar datos en el modal
+    document.getElementById('delete-equipo-code').textContent = codigo;
+    document.getElementById('delete-captcha-op').textContent = `${capA} ${capOp} ${capB}`;
+    document.getElementById('delete-captcha-input').value = '';
+    document.getElementById('delete-captcha-error').classList.add('d-none');
+
+    // Mostrar modal
+    const modalEl = document.getElementById('deleteEquipoModal');
+    const modal = new bootstrap.Modal(modalEl);
+    modal.show();
+  }
+
+  function confirmDeleteEquipoCaptcha() {
+    const inputEl = document.getElementById('delete-captcha-input');
+    const errorEl = document.getElementById('delete-captcha-error');
+    const valor = parseInt(inputEl.value, 10);
+
+    // Evaluar resultado esperado
+    let esperado;
+    switch (capOp) {
+      case "+": esperado = capA + capB; break;
+      case "-": esperado = capA - capB; break;
+      case "×": esperado = capA * capB; break;
+      case "÷": esperado = Math.floor(capA / capB); break;
+    }
+
+    if (valor === esperado) {
+      if (deleteEquipoForm) {
+        deleteEquipoForm.querySelector('input[name="cap_a"]').value = capA;
+        deleteEquipoForm.querySelector('input[name="cap_b"]').value = capB;
+        deleteEquipoForm.querySelector('input[name="cap_op"]').value = capOp;
+        deleteEquipoForm.querySelector('input[name="cap_result"]').value = valor;
+        deleteEquipoForm.submit();
+        deleteEquipoForm = null;
+      }
+      const modalEl = document.getElementById('deleteEquipoModal');
+      const modal = bootstrap.Modal.getInstance(modalEl);
+      if (modal) modal.hide();
+    } else {
+      errorEl.classList.remove('d-none');
+      inputEl.focus();
+    }
+  }
+</script>
+<style>
+  .modal-wide {
+    max-width: 600px; /* corresponde al tamaño "md" de Bootstrap */
+  }
+
+  .captcha-op {
+    padding: 0.25rem 1.25rem;
+    border-radius: 999px;
+    border: 1px solid #dee2e6;
+    background-color: #f8f9fa;
+    font-size: 1.6rem;
+    font-weight: 600;
+    white-space: nowrap;
+    min-width: 140px;
+  }
+
+  .captcha-input {
+    max-width: 180px;
+  }
+</style>
+
+
+
+{% endblock %}
