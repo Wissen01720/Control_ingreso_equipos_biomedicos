@@ -1,0 +1,272 @@
+{% extends "base.html" %} {% block title %}Auditoría de Empresas{% endblock %}
+{% block content %}
+<div class="container-fluid py-4">
+  <div class="row mb-4 animate-fade-in-up">
+    <div class="col-12">
+      <div class="d-flex justify-content-between align-items-center">
+        <div>
+          <h2 class="mb-1 text-gradient">
+            <i class="bi bi-shield-check me-2"></i>Auditoría de Empresas
+            Externas
+          </h2>
+          <p class="text-muted mb-0">
+            Registro completo de todas las acciones realizadas sobre empresas
+          </p>
+        </div>
+        <a
+          href="{{ url_for('empresas_eliminadas') }}"
+          class="btn btn-gradient-danger hover-lift"
+        >
+          <i class="bi bi-trash3 me-2"></i>Ver Eliminadas
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Barra de búsqueda -->
+  <div class="row mb-4 animate-fade-in-up delay-100">
+    <div class="col-12">
+      <div class="card hover-lift">
+        <div class="card-body">
+          <form
+            class="row g-3"
+            method="get"
+            action="{{ url_for('audit_empresas_admin') }}"
+          >
+            <div class="col-md-9">
+              <div class="input-group">
+                <span class="input-group-text bg-white">
+                  <i class="bi bi-search"></i>
+                </span>
+                <input
+                  class="form-control"
+                  name="q"
+                  placeholder="Buscar por acción, actor, empresa, identificación..."
+                  value="{{ q or '' }}"
+                />
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="d-flex gap-2">
+                <button class="btn btn-gradient-primary w-100" type="submit">
+                  <i class="bi bi-search me-2"></i>Buscar
+                </button>
+                {% if q %}
+                <a
+                  class="btn btn-outline-secondary"
+                  href="{{ url_for('audit_empresas_admin') }}"
+                >
+                  <i class="bi bi-x-lg"></i>
+                </a>
+                {% endif %}
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tabla de auditoría -->
+  <div class="row animate-fade-in-up delay-200">
+    <div class="col-12">
+      <div class="card shadow-lg hover-lift">
+        <div class="card-header bg-white border-0 pb-0">
+          <div class="d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">
+              <i class="bi bi-list-ul me-2"></i>Registro de Auditoría
+            </h5>
+            <span class="badge bg-primary rounded-pill"
+              >{{ total }} eventos</span
+            >
+          </div>
+        </div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-hover align-middle m-0">
+              <thead>
+                <tr>
+                  <th class="ps-4">#</th>
+                  <th><i class="bi bi-calendar3 me-1"></i>Fecha</th>
+                  <th><i class="bi bi-building me-1"></i>Empresa</th>
+                  <th><i class="bi bi-gear me-1"></i>Acción</th>
+                  <th><i class="bi bi-person me-1"></i>Actor</th>
+                  <th><i class="bi bi-file-text me-1"></i>Detalle</th>
+                  <th><i class="bi bi-router me-1"></i>IP</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for a in audits %}
+                <tr class="animate-fade-in">
+                  <td class="ps-4 fw-semibold">{{ a.id }}</td>
+                  <td>
+                    <small class="text-muted"
+                      >{{ a.created_at | to_colombia }}</small
+                    >
+                  </td>
+                  <td>
+                    {% if a.empresa %}
+                    <div class="d-flex align-items-center gap-2">
+                      <div
+                        class="d-inline-flex align-items-center justify-content-center bg-success bg-opacity-10 text-success rounded-circle"
+                        style="width: 32px; height: 32px"
+                      >
+                        <i class="bi bi-building-fill"></i>
+                      </div>
+                      <div>
+                        <div class="fw-semibold">{{ a.empresa.nombre }}</div>
+                        <small class="text-muted"
+                          >ID: {{ a.empresa.identificacion }}</small
+                        >
+                      </div>
+                    </div>
+                    {% else %}
+                    <span class="text-muted">— Eliminada —</span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if a.action == 'create' %}
+                    <span
+                      class="badge bg-success-subtle text-success-emphasis border border-success-subtle"
+                    >
+                      <i class="bi bi-plus-circle me-1"></i>Creación
+                    </span>
+                    {% elif a.action == 'update' %}
+                    <span
+                      class="badge bg-info-subtle text-info-emphasis border border-info-subtle"
+                    >
+                      <i class="bi bi-pencil me-1"></i>Actualización
+                    </span>
+                    {% elif a.action == 'delete' %}
+                    <span
+                      class="badge bg-danger-subtle text-danger-emphasis border border-danger-subtle"
+                    >
+                      <i class="bi bi-trash me-1"></i>Eliminación
+                    </span>
+                    {% else %}
+                    <span
+                      class="badge bg-secondary-subtle text-secondary-emphasis"
+                      >{{ a.action }}</span
+                    >
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if a.actor %}
+                    <div class="d-flex align-items-center gap-2">
+                      <div
+                        class="d-inline-flex align-items-center justify-content-center bg-primary bg-opacity-10 text-primary rounded-circle"
+                        style="width: 28px; height: 28px"
+                      >
+                        <i class="bi bi-person-fill"></i>
+                      </div>
+                      <span>{{ a.actor.username }}</span>
+                    </div>
+                    {% else %}
+                    <span class="text-muted">Sistema</span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if a.detail %}
+                    <button
+                      class="btn btn-sm btn-outline-secondary"
+                      type="button"
+                      data-bs-toggle="collapse"
+                      data-bs-target="#detail{{ a.id }}"
+                    >
+                      <i class="bi bi-eye me-1"></i>Ver
+                    </button>
+                    <div class="collapse mt-2" id="detail{{ a.id }}">
+                      <div class="card card-body small bg-light">
+                        <pre class="mb-0" style="white-space: pre-wrap">
+{{ a.detail }}</pre
+                        >
+                      </div>
+                    </div>
+                    {% else %}
+                    <span class="text-muted">—</span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    <small class="text-muted font-monospace"
+                      >{{ a.ip or '—' }}</small
+                    >
+                  </td>
+                </tr>
+                {% else %}
+                <tr>
+                  <td colspan="7" class="text-center py-5">
+                    <i class="bi bi-inbox fs-1 text-muted d-block mb-2"></i>
+                    <p class="text-muted mb-0">
+                      No hay eventos de auditoría registrados
+                    </p>
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Paginación -->
+        {% if total > size %}
+        <div class="card-footer bg-white border-top">
+          <div class="d-flex justify-content-between align-items-center">
+            <div class="text-muted small">
+              Mostrando {{ ((page-1)*size + 1) }} - {{ [page*size, total]|min }}
+              de {{ total }} eventos
+            </div>
+            <nav>
+              <ul class="pagination pagination-sm mb-0">
+                {% if page > 1 %}
+                <li class="page-item">
+                  <a
+                    class="page-link"
+                    href="{{ url_for('audit_empresas_admin', page=page-1, size=size, q=q) }}"
+                  >
+                    <i class="bi bi-chevron-left"></i>
+                  </a>
+                </li>
+                {% endif %} {% for p in range(1, (total // size) + 2) %} {% if p
+                == page %}
+                <li class="page-item active">
+                  <span class="page-link">{{ p }}</span>
+                </li>
+                {% elif p <= 3 or p > ((total // size) - 1) or (p >= page - 1
+                and p <= page + 1) %}
+                <li class="page-item">
+                  <a
+                    class="page-link"
+                    href="{{ url_for('audit_empresas_admin', page=p, size=size, q=q) }}"
+                    >{{ p }}</a
+                  >
+                </li>
+                {% elif p == 4 or p == ((total // size) - 1) %}
+                <li class="page-item disabled">
+                  <span class="page-link">...</span>
+                </li>
+                {% endif %} {% endfor %} {% if page < ((total // size) + 1) %}
+                <li class="page-item">
+                  <a
+                    class="page-link"
+                    href="{{ url_for('audit_empresas_admin', page=page+1, size=size, q=q) }}"
+                  >
+                    <i class="bi bi-chevron-right"></i>
+                  </a>
+                </li>
+                {% endif %}
+              </ul>
+            </nav>
+          </div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .font-monospace {
+    font-family: "Courier New", monospace;
+  }
+</style>
+{% endblock %}

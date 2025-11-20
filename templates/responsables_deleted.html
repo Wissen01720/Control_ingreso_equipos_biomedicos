@@ -1,0 +1,231 @@
+{% extends "base.html" %} {% block title %}Responsables Eliminados{% endblock %}
+{% block content %}
+<div class="container-fluid py-4">
+  <div class="row mb-4 animate-fade-in-up">
+    <div class="col-12">
+      <div class="d-flex justify-content-between align-items-center">
+        <div>
+          <h2 class="mb-1 text-gradient">
+            <i class="bi bi-trash3 me-2"></i>Responsables Eliminados
+          </h2>
+          <p class="text-muted mb-0">
+            Registro permanente de responsables eliminados del sistema
+          </p>
+        </div>
+        <a
+          href="{{ url_for('audit_responsables_admin') }}"
+          class="btn btn-gradient-primary hover-lift"
+        >
+          <i class="bi bi-arrow-left me-2"></i>Volver a Auditoría
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Barra de búsqueda -->
+  <div class="row mb-4 animate-fade-in-up delay-100">
+    <div class="col-12">
+      <div class="card hover-lift">
+        <div class="card-body">
+          <form class="row g-3" method="get">
+            <div class="col-md-9">
+              <div class="input-group">
+                <span class="input-group-text bg-white">
+                  <i class="bi bi-search"></i>
+                </span>
+                <input
+                  class="form-control"
+                  name="q"
+                  placeholder="Buscar por nombre, ID, correo, empresa, actor..."
+                  value="{{ q or '' }}"
+                />
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="d-flex gap-2">
+                <button class="btn btn-gradient-primary w-100" type="submit">
+                  <i class="bi bi-search me-2"></i>Buscar
+                </button>
+                {% if q %}
+                <a
+                  class="btn btn-outline-secondary"
+                  href="{{ url_for('responsables_eliminados') }}"
+                >
+                  <i class="bi bi-x-lg"></i>
+                </a>
+                {% endif %}
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tabla -->
+  <div class="row animate-fade-in-up delay-200">
+    <div class="col-12">
+      <div class="card shadow-lg hover-lift">
+        <div class="card-header bg-white border-0 pb-0">
+          <div class="d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">
+              <i class="bi bi-archive me-2"></i>Registro de Eliminaciones
+            </h5>
+            <span class="badge bg-danger rounded-pill"
+              >{{ total }} responsables</span
+            >
+          </div>
+        </div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-hover align-middle m-0">
+              <thead>
+                <tr>
+                  <th class="ps-4">#</th>
+                  <th><i class="bi bi-calendar3 me-1"></i>Fecha Eliminación</th>
+                  <th><i class="bi bi-person-badge me-1"></i>Responsable</th>
+                  <th><i class="bi bi-credit-card me-1"></i>ID</th>
+                  <th><i class="bi bi-envelope me-1"></i>Correo</th>
+                  <th><i class="bi bi-building me-1"></i>Empresa</th>
+                  <th><i class="bi bi-person me-1"></i>Eliminado Por</th>
+                  <th><i class="bi bi-router me-1"></i>IP</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for r in rows %}
+                <tr class="animate-fade-in">
+                  <td class="ps-4 fw-semibold">{{ r.id }}</td>
+                  <td>
+                    <small class="text-muted"
+                      >{{ r.deleted_at | to_colombia }}</small
+                    >
+                  </td>
+                  <td>
+                    <div class="d-flex align-items-center gap-2">
+                      <div
+                        class="d-inline-flex align-items-center justify-content-center bg-danger bg-opacity-10 text-danger rounded-circle"
+                        style="width: 32px; height: 32px"
+                      >
+                        <i class="bi bi-person-badge-fill"></i>
+                      </div>
+                      <div>
+                        <div class="fw-semibold">
+                          {{ r.nombre_responsable }}
+                        </div>
+                        <small class="text-muted"
+                          >ID Original: {{ r.responsable_id or '—' }}</small
+                        >
+                      </div>
+                    </div>
+                  </td>
+                  <td>
+                    <span
+                      class="badge bg-secondary-subtle text-secondary-emphasis"
+                    >
+                      {{ r.id_responsable }}
+                    </span>
+                  </td>
+                  <td>
+                    <small class="text-muted">
+                      <i class="bi bi-envelope me-1"></i>{{ r.correo_responsable
+                      }}
+                    </small>
+                  </td>
+                  <td>
+                    {% if r.empresa_nombre %}
+                    <span class="badge bg-info-subtle text-info-emphasis">
+                      <i class="bi bi-building me-1"></i>{{ r.empresa_nombre }}
+                    </span>
+                    {% else %}
+                    <span class="text-muted">—</span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if r.actor %}
+                    <div class="d-flex align-items-center gap-2">
+                      <div
+                        class="d-inline-flex align-items-center justify-content-center bg-primary bg-opacity-10 text-primary rounded-circle"
+                        style="width: 28px; height: 28px"
+                      >
+                        <i class="bi bi-person-fill"></i>
+                      </div>
+                      <span>{{ r.actor.username }}</span>
+                    </div>
+                    {% else %}
+                    <span class="text-muted">—</span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    <small class="text-muted font-monospace"
+                      >{{ r.ip or '—' }}</small
+                    >
+                  </td>
+                </tr>
+                {% else %}
+                <tr>
+                  <td colspan="8" class="text-center py-5">
+                    <i class="bi bi-inbox fs-1 text-muted d-block mb-2"></i>
+                    <p class="text-muted mb-0">
+                      No hay responsables eliminados registrados
+                    </p>
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Paginación -->
+        {% if total > size %}
+        <div class="card-footer bg-white border-top">
+          <div class="d-flex justify-content-between align-items-center">
+            <div class="text-muted small">
+              Mostrando {{ ((page-1)*size + 1) }} - {{ [page*size, total]|min }}
+              de {{ total }} registros
+            </div>
+            <nav>
+              <ul class="pagination pagination-sm mb-0">
+                {% if page > 1 %}
+                <li class="page-item">
+                  <a
+                    class="page-link"
+                    href="{{ url_for('responsables_eliminados', page=page-1, size=size, q=q) }}"
+                  >
+                    <i class="bi bi-chevron-left"></i>
+                  </a>
+                </li>
+                {% endif %} {% for p in range(1, (total // size) + 2) %} {% if p
+                == page %}
+                <li class="page-item active">
+                  <span class="page-link">{{ p }}</span>
+                </li>
+                {% elif p <= 3 or p > ((total // size) - 1) or (p >= page - 1
+                and p <= page + 1) %}
+                <li class="page-item">
+                  <a
+                    class="page-link"
+                    href="{{ url_for('responsables_eliminados', page=p, size=size, q=q) }}"
+                    >{{ p }}</a
+                  >
+                </li>
+                {% endif %} {% endfor %} {% if page < ((total // size) + 1) %}
+                <li class="page-item">
+                  <a
+                    class="page-link"
+                    href="{{ url_for('responsables_eliminados', page=page+1, size=size, q=q) }}"
+                  >
+                    <i class="bi bi-chevron-right"></i>
+                  </a>
+                </li>
+                {% endif %}
+              </ul>
+            </nav>
+          </div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
