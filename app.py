@@ -24,9 +24,13 @@ from sqlalchemy.orm import sessionmaker, scoped_session, joinedload, aliased
 
 # --- Local modules  para la aplicación ---
 import models  
-from models import Base, User, UserAudit, Equipo, EquipoAudit, EmpresaExterna, ResponsableEntrega
+from models import (
+    Base, User, UserAudit, Equipo, EquipoAudit, EmpresaExterna, ResponsableEntrega,
+    Notification, EmpresaExternaAudit, EmpresaExternaDeletion, 
+    ResponsableEntregaAudit, ResponsableEntregaDeletion
+)
 from forms import LoginForm, UserCreateForm, UserEditForm, UserSelfEditForm, EquipoForm, EmpresaExternaForm,ResponsableEntregaForm
-from models import Notification
+
 
 from xhtml2pdf import pisa
 
@@ -139,6 +143,88 @@ def log_equipo_audit(db, *, equipo_id: int, action: str, detail: dict | None = N
     return entry
 
 
+# --- Funciones helper para auditoría de empresas ---
+def log_empresa_audit(db, *, empresa_id: int, action: str, detail: dict | None = None, actor_user_id: int | None = None):
+    entry = EmpresaExternaAudit(
+        empresa_id=empresa_id,
+        actor_user_id=actor_user_id,
+        action=action,
+        detail=json.dumps(detail, ensure_ascii=False) if detail else None,
+        ip=_client_ip(request),
+        user_agent=_ua(request),
+    )
+    db.add(entry)
+    db.commit()
+    return entry
+
+
+def log_empresa_deletion(db, empresa: EmpresaExterna, actor_user_id: int | None = None):
+    entry = EmpresaExternaDeletion(
+        empresa_id=empresa.id,
+        identificacion=empresa.identificacion,
+        nombre=empresa.nombre,
+        actor_user_id=actor_user_id,
+        ip=_client_ip(request),
+        user_agent=_ua(request),
+    )
+    db.add(entry)
+    db.commit()
+    return entry
+
+
+# --- Funciones helper para auditoría de responsables ---
+def log_responsable_audit(db, *, responsable_id: int, action: str, detail: dict | None = None, actor_user_id: int | None = None):
+    entry = ResponsableEntregaAudit(
+        responsable_id=responsable_id,
+        actor_user_id=actor_user_id,
+        action=action,
+        detail=json.dumps(detail, ensure_ascii=False) if detail else None,
+        ip=_client_ip(request),
+        user_agent=_ua(request),
+    )
+    db.add(entry)
+    db.commit()
+    return entry
+
+
+def log_responsable_deletion(db, responsable: ResponsableEntrega, actor_user_id: int | None = None):
+    entry = ResponsableEntregaDeletion(
+        responsable_id=responsable.id,
+        id_responsable=responsable.id_responsable,
+        nombre_responsable=responsable.nombre_responsable,
+        correo_responsable=responsable.correo_responsable,
+        empresa_nombre=responsable.empresa.nombre if responsable.empresa else None,
+        actor_user_id=actor_user_id,
+        ip=_client_ip(request),
+        user_agent=_ua(request),
+    )
+    db.add(entry)
+    db.commit()
+    return entry
+
+
+# --- Función para crear notificaciones ---
+def create_notification(db, user_id: int, title: str, body: str = None, level: str = "info"):
+    """Crea una notificación para un usuario específico"""
+    notif = Notification(
+        user_id=user_id,
+        title=title,
+        body=body,
+        level=level
+    )
+    db.add(notif)
+    db.commit()
+    return notif
+
+
+def notify_all_admins(db, title: str, body: str = None, level: str = "info"):
+    """Crea notificaciones para todos los administradores"""
+    admins = db.query(User).filter(User.role == "admin").all()
+    for admin in admins:
+        create_notification(db, admin.id, title, body, level)
+
+
+
 @app.template_filter("to_colombia") # filtro Jinja2 para convertir fechas a hora Colombia
 def to_colombia(value):
     """Convierte UTC → hora Colombia (UTC-5)"""
@@ -171,7 +257,7 @@ def login():
 
     form = LoginForm()
     if form.validate_on_submit():
-        now = datetime.utcnow()
+        now = datetime.now()
         input_username = normalize_username(form.username.data)
         db = SessionLocal()
         try:
@@ -1144,6 +1230,25 @@ def empresas_create():
                 nombre=nombre,
             )
             db.add(emp)
+            db.flush()  # Para obtener el ID
+
+            # Auditoría
+            log_empresa_audit(
+                db, 
+                empresa_id=emp.id, 
+                action="create",
+                detail={"identificacion": ident, "nombre": nombre},
+                actor_user_id=current_user.id
+            )
+
+            # Notificar a todos los admins
+            notify_all_admins(
+                db,
+                title="Nueva empresa creada",
+                body=f"Se ha creado la empresa '{nombre}' (ID: {ident}) por {current_user.username}",
+                level="success"
+            )
+
             db.commit()
 
             flash("Empresa creada correctamente.", "success")
@@ -1181,10 +1286,38 @@ def empresas_edit(empresa_id: int):
                 flash("Otra empresa ya tiene esa identificación.", "danger")
                 return render_template("empresas_form.html", form=form, is_edit=True, empresa=emp)
 
+            # Guardar valores anteriores para auditoría
+            old_values = {
+                "identificacion": emp.identificacion,
+                "nombre": emp.nombre
+            }
+
             emp.identificacion = new_ident
             emp.nombre = new_nombre
 
             db.add(emp)
+            db.flush()
+
+            # Auditoría
+            log_empresa_audit(
+                db,
+                empresa_id=emp.id,
+                action="update",
+                detail={
+                    "old": old_values,
+                    "new": {"identificacion": new_ident, "nombre": new_nombre}
+                },
+                actor_user_id=current_user.id
+            )
+
+            # Notificar a todos los admins
+            notify_all_admins(
+                db,
+                title="Empresa actualizada",
+                body=f"Se ha actualizado la empresa '{new_nombre}' por {current_user.username}",
+                level="info"
+            )
+
             db.commit()
 
             flash("Empresa actualizada.", "success")
@@ -1264,6 +1397,30 @@ def responsables_create():
                 empresa_id=form.empresa_id.data,
             )
             db.add(resp)
+            db.flush()
+
+            # Auditoría
+            log_responsable_audit(
+                db,
+                responsable_id=resp.id,
+                action="create",
+                detail={
+                    "id_responsable": id_resp,
+                    "nombre": nombre,
+                    "correo": correo,
+                    "empresa_id": form.empresa_id.data
+                },
+                actor_user_id=current_user.id
+            )
+
+            # Notificar a todos los admins
+            notify_all_admins(
+                db,
+                title="Nuevo responsable creado",
+                body=f"Se ha creado el responsable '{nombre}' por {current_user.username}",
+                level="success"
+            )
+
             db.commit()
 
             flash("Responsable creado correctamente.", "success")
@@ -1320,12 +1477,47 @@ def responsables_edit(resp_id: int):
                 flash("Otro responsable ya tiene ese ID.", "danger")
                 return render_template("responsables_form.html", form=form, is_edit=True, responsable=resp)
 
+            # Guardar valores anteriores
+            old_values = {
+                "id_responsable": resp.id_responsable,
+                "nombre": resp.nombre_responsable,
+                "correo": resp.correo_responsable,
+                "empresa_id": resp.empresa_id
+            }
+
             resp.id_responsable = new_id_resp
             resp.nombre_responsable = new_nombre
             resp.correo_responsable = new_correo
             resp.empresa_id = form.empresa_id.data
 
             db.add(resp)
+            db.flush()
+
+            # Auditoría
+            log_responsable_audit(
+                db,
+                responsable_id=resp.id,
+                action="update",
+                detail={
+                    "old": old_values,
+                    "new": {
+                        "id_responsable": new_id_resp,
+                        "nombre": new_nombre,
+                        "correo": new_correo,
+                        "empresa_id": form.empresa_id.data
+                    }
+                },
+                actor_user_id=current_user.id
+            )
+
+            # Notificar a todos los admins
+            notify_all_admins(
+                db,
+                title="Responsable actualizado",
+                body=f"Se ha actualizado el responsable '{new_nombre}' por {current_user.username}",
+                level="info"
+            )
+
             db.commit()
 
             flash("Responsable actualizado.", "success")
@@ -1352,6 +1544,17 @@ def empresas_delete(empresa_id: int):
             flash("No puedes eliminar la empresa porque tiene equipos asociados.", "warning")
             return redirect(url_for("empresas_index"))
 
+        # Guardar snapshot antes de eliminar
+        log_empresa_deletion(db, emp, actor_user_id=current_user.id)
+
+        # Notificar a todos los admins
+        notify_all_admins(
+            db,
+            title="Empresa eliminada",
+            body=f"Se ha eliminado la empresa '{emp.nombre}' (ID: {emp.identificacion}) por {current_user.username}",
+            level="warning"
+        )
+
         # Si no hay equipos, se puede eliminar.
         db.delete(emp)
         db.commit()
@@ -1377,6 +1580,17 @@ def responsables_delete(resp_id: int):
             flash("No puedes eliminar el responsable porque tiene equipos asociados.", "warning")
             return redirect(url_for("responsables_index"))
 
+        # Guardar snapshot antes de eliminar
+        log_responsable_deletion(db, resp, actor_user_id=current_user.id)
+
+        # Notificar a todos los admins
+        notify_all_admins(
+            db,
+            title="Responsable eliminado",
+            body=f"Se ha eliminado el responsable '{resp.nombre_responsable}' por {current_user.username}",
+            level="warning"
+        )
+
         db.delete(resp)
         db.commit()
         flash("Responsable eliminado correctamente.", "info")
@@ -1385,6 +1599,166 @@ def responsables_delete(resp_id: int):
         db.close()
 
 
+# ========= Auditoría de Empresas y Responsables =========
+
+@app.route("/admin/empresas/auditoria")
+@login_required
+@admin_required
+def audit_empresas_admin():
+    """Vista de auditoría completa de empresas (solo admin)"""
+    db = SessionLocal()
+    try:
+        q_text = (request.args.get("q") or "").strip().lower()
+        page = max(1, int(request.args.get("page", 1)))
+        size = min(100, max(10, int(request.args.get("size", 20))))
+
+        Actor = aliased(User)
+        EmpresaAlias = aliased(EmpresaExterna)
+
+        qry = (db.query(EmpresaExternaAudit)
+               .outerjoin(Actor, EmpresaExternaAudit.actor)
+               .outerjoin(EmpresaAlias, EmpresaExternaAudit.empresa)
+               .options(
+                   joinedload(EmpresaExternaAudit.actor),
+                   joinedload(EmpresaExternaAudit.empresa),
+               )
+               .order_by(EmpresaExternaAudit.id.desc()))
+
+        if q_text:
+            like = f"%{q_text}%"
+            qry = qry.filter(or_(
+                EmpresaExternaAudit.action.ilike(like),
+                EmpresaExternaAudit.detail.ilike(like),
+                EmpresaExternaAudit.ip.ilike(like),
+                Actor.username.ilike(like),
+                EmpresaAlias.nombre.ilike(like),
+                EmpresaAlias.identificacion.ilike(like),
+            ))
+
+        total = qry.count()
+        audits = qry.offset((page-1)*size).limit(size).all()
+        return render_template("audit_empresas_admin.html",
+                               audits=audits, page=page, size=size, total=total, q=q_text)
+    finally:
+        db.close()
+
+
+@app.route("/admin/empresas/eliminadas")
+@login_required
+@admin_required
+def empresas_eliminadas():
+    """Vista de empresas eliminadas (solo admin)"""
+    db = SessionLocal()
+    try:
+        q_text = (request.args.get("q") or "").strip().lower()
+        page = max(1, int(request.args.get("page", 1)))
+        size = min(100, max(10, int(request.args.get("size", 20))))
+
+        Actor = aliased(User)
+
+        qry = (db.query(EmpresaExternaDeletion)
+               .outerjoin(Actor, EmpresaExternaDeletion.actor)
+               .options(joinedload(EmpresaExternaDeletion.actor))
+               .order_by(EmpresaExternaDeletion.id.desc()))
+
+        if q_text:
+            like = f"%{q_text}%"
+            qry = qry.filter(or_(
+                EmpresaExternaDeletion.identificacion.ilike(like),
+                EmpresaExternaDeletion.nombre.ilike(like),
+                Actor.username.ilike(like),
+            ))
+
+        total = qry.count()
+        rows = qry.offset((page-1)*size).limit(size).all()
+
+        return render_template(
+            "empresas_deleted.html",
+            rows=rows, q=q_text, page=page, size=size, total=total
+        )
+    finally:
+        db.close()
+
+
+@app.route("/admin/responsables/auditoria")
+@login_required
+@admin_required
+def audit_responsables_admin():
+    """Vista de auditoría completa de responsables (solo admin)"""
+    db = SessionLocal()
+    try:
+        q_text = (request.args.get("q") or "").strip().lower()
+        page = max(1, int(request.args.get("page", 1)))
+        size = min(100, max(10, int(request.args.get("size", 20))))
+
+        Actor = aliased(User)
+        ResponsableAlias = aliased(ResponsableEntrega)
+
+        qry = (db.query(ResponsableEntregaAudit)
+               .outerjoin(Actor, ResponsableEntregaAudit.actor)
+               .outerjoin(ResponsableAlias, ResponsableEntregaAudit.responsable)
+               .options(
+                   joinedload(ResponsableEntregaAudit.actor),
+                   joinedload(ResponsableEntregaAudit.responsable),
+               )
+               .order_by(ResponsableEntregaAudit.id.desc()))
+
+        if q_text:
+            like = f"%{q_text}%"
+            qry = qry.filter(or_(
+                ResponsableEntregaAudit.action.ilike(like),
+                ResponsableEntregaAudit.detail.ilike(like),
+                ResponsableEntregaAudit.ip.ilike(like),
+                Actor.username.ilike(like),
+                ResponsableAlias.nombre_responsable.ilike(like),
+                ResponsableAlias.id_responsable.ilike(like),
+            ))
+
+        total = qry.count()
+        audits = qry.offset((page-1)*size).limit(size).all()
+        return render_template("audit_responsables_admin.html",
+                               audits=audits, page=page, size=size, total=total, q=q_text)
+    finally:
+        db.close()
+
+
+@app.route("/admin/responsables/eliminados")
+@login_required
+@admin_required
+def responsables_eliminados():
+    """Vista de responsables eliminados (solo admin)"""
+    db = SessionLocal()
+    try:
+        q_text = (request.args.get("q") or "").strip().lower()
+        page = max(1, int(request.args.get("page", 1)))
+        size = min(100, max(10, int(request.args.get("size", 20))))
+
+        Actor = aliased(User)
+
+        qry = (db.query(ResponsableEntregaDeletion)
+               .outerjoin(Actor, ResponsableEntregaDeletion.actor)
+               .options(joinedload(ResponsableEntregaDeletion.actor))
+               .order_by(ResponsableEntregaDeletion.id.desc()))
+
+        if q_text:
+            like = f"%{q_text}%"
+            qry = qry.filter(or_(
+                ResponsableEntregaDeletion.id_responsable.ilike(like),
+                ResponsableEntregaDeletion.nombre_responsable.ilike(like),
+                ResponsableEntregaDeletion.correo_responsable.ilike(like),
+                ResponsableEntregaDeletion.empresa_nombre.ilike(like),
+                Actor.username.ilike(like),
+            ))
+
+        total = qry.count()
+        rows = qry.offset((page-1)*size).limit(size).all()
+
+        return render_template(
+            "responsables_deleted.html",
+            rows=rows, q=q_text, page=page, size=size, total=total
+        )
+    finally:
+        db.close()
 
 
 # ========= Gestión de Equipos =========

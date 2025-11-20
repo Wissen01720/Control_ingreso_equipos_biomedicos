@@ -361,3 +361,123 @@ class Notification(Base):
     )
 
     user = relationship("User")
+
+
+# ================== AUDITORÍA EMPRESAS EXTERNAS ================== #
+
+class EmpresaExternaAudit(Base):
+    __tablename__ = "empresa_externa_audit"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    empresa_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("empresas_externas.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True
+    )
+    actor_user_id: Mapped[int | None] = mapped_column(
+        Integer,
+        ForeignKey("users.id", ondelete="SET NULL"),
+        index=True,
+        nullable=True
+    )
+    action: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    detail: Mapped[str | None] = mapped_column(Text, nullable=True)
+    ip: Mapped[str | None] = mapped_column(String(45), nullable=True)
+    user_agent: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=False),
+        server_default=func.now(),
+        nullable=False
+    )
+
+    empresa = relationship("EmpresaExterna", backref="audits")
+    actor = relationship("User", foreign_keys=[actor_user_id])
+
+
+class EmpresaExternaDeletion(Base):
+    __tablename__ = "empresa_externa_deletions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    # Snapshot del empresa eliminada
+    empresa_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    identificacion: Mapped[str] = mapped_column(String(30), nullable=False, index=True)
+    nombre: Mapped[str] = mapped_column(String(150), nullable=False, index=True)
+
+    # Actor (quien eliminó)
+    actor_user_id: Mapped[int | None] = mapped_column(
+        Integer,
+        ForeignKey("users.id", ondelete="SET NULL"),
+        index=True
+    )
+    actor = relationship("User", foreign_keys=[actor_user_id])
+
+    # Metadatos
+    ip: Mapped[str | None] = mapped_column(String(45), nullable=True)
+    user_agent: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    deleted_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=False),
+        server_default=func.now(),
+        nullable=False
+    )
+
+
+# ================== AUDITORÍA RESPONSABLES ENTREGA ================== #
+
+class ResponsableEntregaAudit(Base):
+    __tablename__ = "responsable_entrega_audit"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    responsable_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("responsables_entrega.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True
+    )
+    actor_user_id: Mapped[int | None] = mapped_column(
+        Integer,
+        ForeignKey("users.id", ondelete="SET NULL"),
+        index=True,
+        nullable=True
+    )
+    action: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    detail: Mapped[str | None] = mapped_column(Text, nullable=True)
+    ip: Mapped[str | None] = mapped_column(String(45), nullable=True)
+    user_agent: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=False),
+        server_default=func.now(),
+        nullable=False
+    )
+
+    responsable = relationship("ResponsableEntrega", backref="audits")
+    actor = relationship("User", foreign_keys=[actor_user_id])
+
+
+class ResponsableEntregaDeletion(Base):
+    __tablename__ = "responsable_entrega_deletions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    # Snapshot del responsable eliminado
+    responsable_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    id_responsable: Mapped[str] = mapped_column(String(30), nullable=False, index=True)
+    nombre_responsable: Mapped[str] = mapped_column(String(150), nullable=False, index=True)
+    correo_responsable: Mapped[str] = mapped_column(String(150), nullable=False, index=True)
+    empresa_nombre: Mapped[str | None] = mapped_column(String(150), nullable=True)
+
+    # Actor (quien eliminó)
+    actor_user_id: Mapped[int | None] = mapped_column(
+        Integer,
+        ForeignKey("users.id", ondelete="SET NULL"),
+        index=True
+    )
+    actor = relationship("User", foreign_keys=[actor_user_id])
+
+    # Metadatos
+    ip: Mapped[str | None] = mapped_column(String(45), nullable=True)
+    user_agent: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    deleted_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=False),
+        server_default=func.now(),
+        nullable=False
+    )
