@@ -97,9 +97,7 @@
       </div>
     </header>
 
-    <nav
-      class="navbar navbar-expand-lg navbar-light bg-body-tertiary shadow-sm"
-    >
+    <nav class="navbar navbar-expand-lg navbar-light shadow-sm">
       <div class="container">
         <a
           class="navbar-brand fw-semibold"
@@ -633,6 +631,9 @@
 
     <!-- Script de animaciones con Anime.js -->
     <script src="{{ url_for('static', filename='js/animations.js') }}"></script>
+
+    <!-- Script de captchas personalizados -->
+    <script src="{{ url_for('static', filename='js/captcha.js') }}"></script>
 
     {% block body_extra %}{% endblock %}
   </body>
