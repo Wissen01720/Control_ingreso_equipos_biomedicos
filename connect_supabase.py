@@ -4,7 +4,13 @@ import psycopg
 
 load_dotenv()
 
-dsn = os.getenv("PSYCOPG_DSN") or "postgresql://postgres:usTa202510.@db.jfqrpfgjnquepxdwovbg.supabase.co:5432/postgres"
+# ⚠️ SEGURIDAD: Nunca incluir credenciales hardcodeadas
+dsn = os.getenv("PSYCOPG_DSN")
+if not dsn:
+    raise RuntimeError(
+        "❌ PSYCOPG_DSN no configurado en .env\n"
+        "Define la variable de entorno PSYCOPG_DSN con tu cadena de conexión."
+    )
 
 try:
     with psycopg.connect(dsn, sslmode="require") as conn:

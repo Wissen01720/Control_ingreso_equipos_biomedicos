@@ -182,9 +182,9 @@ class EquipoForm(FlaskForm):
 
 class EmpresaExternaForm(FlaskForm):
     identificacion = StringField(
-        "Identificación (NIT / código)",
+        "NIT",
         validators=[
-            DataRequired(),
+            DataRequired("El NIT es obligatorio."),
             Length(max=30),
             Regexp(
                 r"^[A-Za-z0-9\-_.]+$",
@@ -194,7 +194,27 @@ class EmpresaExternaForm(FlaskForm):
     )
     nombre = StringField(
         "Nombre / razón social",
-        validators=[DataRequired(), Length(max=150)]
+        validators=[DataRequired("El nombre es obligatorio."), Length(max=150)]
+    )
+    contacto_nombre = StringField(
+        "Nombre del contacto",
+        validators=[Optional(), Length(max=150)]
+    )
+    contacto_telefono = StringField(
+        "Teléfono de contacto",
+        validators=[Optional(), Length(max=50)]
+    )
+    contacto_email = StringField(
+        "Email de contacto",
+        validators=[Optional(), Email(message="Email inválido."), Length(max=120)]
+    )
+    direccion = TextAreaField(
+        "Dirección",
+        validators=[Optional()]
+    )
+    observaciones = TextAreaField(
+        "Observaciones",
+        validators=[Optional()]
     )
     submit = SubmitField("Guardar")
 
@@ -227,3 +247,10 @@ class ResponsableEntregaForm(FlaskForm):
     )
 
     submit = SubmitField("Guardar")
+
+
+# Formularios de eliminación con reCAPTCHA
+class DeleteForm(FlaskForm):
+    """Formulario genérico de eliminación con reCAPTCHA"""
+    recaptcha = RecaptchaField()
+    submit = SubmitField("Confirmar eliminación")
