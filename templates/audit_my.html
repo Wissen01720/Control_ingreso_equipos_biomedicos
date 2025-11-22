@@ -1,17 +1,16 @@
-{% extends "base.html" %}
-{% block title %}Mi auditoría{% endblock %}
-{% block content %}
+{% extends "base.html" %} {% block title %}Mi auditoría{% endblock %} {% block
+content %}
 <div class="row justify-content-center">
   <div class="col-lg-10">
     <div class="d-flex justify-content-between align-items-center mb-3">
       <h3 class="m-0">Actividad reciente</h3>
     </div>
 
-    <div class="card shadow-sm">
+    <div class="card shadow-sm animate-fade-in">
       <div class="card-body p-0">
         <div class="table-responsive">
-          <table class="table table-striped align-middle m-0">
-            <thead class="table-light">
+          <table class="table table-modern align-middle m-0">
+            <thead>
               <tr>
                 <th>#</th>
                 <th>Acción</th>
@@ -25,14 +24,22 @@
               {% for a in audits %}
               <tr>
                 <td>{{ a.id }}</td>
-                <td><span class="badge text-bg-secondary">{{ a.action }}</span></td>
+                <td>
+                  <span class="badge text-bg-secondary">{{ a.action }}</span>
+                </td>
                 <td>{{ a.detail|render_audit_detail }}</td>
                 <td>{{ a.ip or '-' }}</td>
-                <td><span class="small text-muted">{{ a.user_agent }}</span></td>
+                <td>
+                  <span class="small text-muted">{{ a.user_agent }}</span>
+                </td>
                 <td><small>{{ a.created_at }}</small></td>
               </tr>
               {% else %}
-              <tr><td colspan="6" class="text-center py-4 text-muted">Sin registros.</td></tr>
+              <tr>
+                <td colspan="6" class="text-center py-4 text-muted">
+                  Sin registros.
+                </td>
+              </tr>
               {% endfor %}
             </tbody>
           </table>
@@ -45,14 +52,20 @@
       <div class="text-muted small">Total: {{ total }}</div>
       <div class="btn-group">
         {% if page > 1 %}
-        <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('my_audit', page=page-1, size=size) }}">« Anterior</a>
-        {% endif %}
-        {% if page*size < total %}
-        <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('my_audit', page=page+1, size=size) }}">Siguiente »</a>
+        <a
+          class="btn btn-outline-secondary btn-sm"
+          href="{{ url_for('my_audit', page=page-1, size=size) }}"
+          >« Anterior</a
+        >
+        {% endif %} {% if page*size < total %}
+        <a
+          class="btn btn-outline-secondary btn-sm"
+          href="{{ url_for('my_audit', page=page+1, size=size) }}"
+          >Siguiente »</a
+        >
         {% endif %}
       </div>
     </div>
-
   </div>
 </div>
 {% endblock %}

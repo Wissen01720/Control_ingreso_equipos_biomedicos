@@ -1,33 +1,102 @@
-{% extends "base.html" %}
-{% block title %}{{ 'Editar empresa' if is_edit else 'Nueva empresa' }}{% endblock %}
-
-{% block content %}
+{% extends "base.html" %} {% block title %}{{ 'Editar empresa' if is_edit else
+'Nueva empresa' }}{% endblock %} {% block content %}
 <div class="row justify-content-center">
   <div class="col-lg-6 col-xl-5">
     <div class="card shadow">
       <div class="card-body">
-        <h3 class="mb-3">{{ 'Editar empresa' if is_edit else 'Nueva empresa' }}</h3>
+        <h3 class="mb-3">
+          {{ 'Editar empresa' if is_edit else 'Nueva empresa' }}
+        </h3>
 
         <form method="POST" novalidate>
           {{ form.hidden_tag() }}
 
           <div class="mb-3">
-            <label class="form-label" for="{{ form.identificacion.id }}">{{ form.identificacion.label }}</label>
-            {{ form.identificacion(class="form-control", id=form.identificacion.id) }}
-            <div class="form-text">Ejemplo: NIT, código interno, etc.</div>
+            <label class="form-label" for="{{ form.identificacion.id }}"
+              >{{ form.identificacion.label }}
+              <span class="text-danger">*</span></label
+            >
+            {{ form.identificacion(class="form-control" + (" is-invalid" if
+            form.identificacion.errors else ""), id=form.identificacion.id) }}
+            {% if form.identificacion.errors %}
+            <div class="invalid-feedback">
+              {{ form.identificacion.errors[0] }}
+            </div>
+            {% endif %}
           </div>
 
           <div class="mb-3">
-            <label class="form-label" for="{{ form.nombre.id }}">{{ form.nombre.label }}</label>
-            {{ form.nombre(class="form-control", id=form.nombre.id) }}
+            <label class="form-label" for="{{ form.nombre.id }}"
+              >{{ form.nombre.label }} <span class="text-danger">*</span></label
+            >
+            {{ form.nombre(class="form-control" + (" is-invalid" if
+            form.nombre.errors else ""), id=form.nombre.id) }} {% if
+            form.nombre.errors %}
+            <div class="invalid-feedback">{{ form.nombre.errors[0] }}</div>
+            {% endif %}
           </div>
 
-          <div class="d-flex gap-2 mt-3">
+          <hr class="my-4" />
+          <h5 class="mb-3">Información de contacto</h5>
+
+          <div class="mb-3">
+            <label class="form-label" for="{{ form.contacto_nombre.id }}"
+              >{{ form.contacto_nombre.label }}</label
+            >
+            {{ form.contacto_nombre(class="form-control",
+            id=form.contacto_nombre.id, placeholder="Nombre de la persona de
+            contacto") }}
+          </div>
+
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label class="form-label" for="{{ form.contacto_telefono.id }}"
+                >{{ form.contacto_telefono.label }}</label
+              >
+              {{ form.contacto_telefono(class="form-control",
+              id=form.contacto_telefono.id, placeholder="+57 300 123 4567") }}
+            </div>
+            <div class="col-md-6 mb-3">
+              <label class="form-label" for="{{ form.contacto_email.id }}"
+                >{{ form.contacto_email.label }}</label
+              >
+              {{ form.contacto_email(class="form-control" + (" is-invalid" if
+              form.contacto_email.errors else ""), id=form.contacto_email.id,
+              placeholder="contacto@empresa.com", type="email") }} {% if
+              form.contacto_email.errors %}
+              <div class="invalid-feedback">
+                {{ form.contacto_email.errors[0] }}
+              </div>
+              {% endif %}
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label" for="{{ form.direccion.id }}"
+              >{{ form.direccion.label }}</label
+            >
+            {{ form.direccion(class="form-control", id=form.direccion.id,
+            rows="2", placeholder="Dirección física de la empresa") }}
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label" for="{{ form.observaciones.id }}"
+              >{{ form.observaciones.label }}</label
+            >
+            {{ form.observaciones(class="form-control",
+            id=form.observaciones.id, rows="3", placeholder="Notas o información
+            adicional relevante") }}
+          </div>
+
+          <div class="d-flex gap-2 mt-4">
             {{ form.submit(class="btn btn-primary") }}
-            <a href="{{ url_for('empresas_index') }}" class="btn btn-outline-secondary">Cancelar</a>
+            <a
+              href="{{ url_for('empresas_index') }}"
+              class="btn btn-outline-secondary"
+              >Cancelar</a
+            >
           </div>
         </form>
-
       </div>
     </div>
   </div>

@@ -1,48 +1,60 @@
-{% extends "base.html" %}
-{% block title %}Responsables de entrega{% endblock %}
-
-{% block content %}
-{% set is_admin = (current_user.role == 'admin') %}
+{% extends "base.html" %} {% block title %}Responsables de entrega{% endblock %}
+{% block content %} {% set is_admin = (current_user.role == 'admin') %}
 
 <div class="row justify-content-center">
   <div class="col-lg-11">
-    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <div
+      class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2"
+    >
       <div class="d-flex align-items-center gap-2">
         <h3 class="m-0">Responsables de entrega</h3>
         {% if not is_admin %}
-          <span class="badge text-bg-secondary">Solo lectura</span>
+        <span class="badge text-bg-secondary">Solo lectura</span>
         {% endif %}
       </div>
 
-      <form class="d-flex gap-2" method="get" action="{{ url_for('responsables_index') }}">
-        <input class="form-control" name="q" value="{{ q or '' }}"
-               placeholder="Buscar por ID, nombre, correo o empresa…">
+      <form
+        class="d-flex gap-2"
+        method="get"
+        action="{{ url_for('responsables_index') }}"
+      >
+        <input
+          class="form-control"
+          name="q"
+          value="{{ q or '' }}"
+          placeholder="Buscar por ID, nombre, correo o empresa…"
+        />
         <div class="btn-group">
           <button class="btn btn-outline-primary" type="submit">Buscar</button>
-          <a class="btn btn-outline-danger" href="{{ url_for('responsables_index') }}">Limpiar</a>
+          <a
+            class="btn btn-outline-danger"
+            href="{{ url_for('responsables_index') }}"
+            >Limpiar</a
+          >
         </div>
       </form>
 
       {% if is_admin %}
-        <a class="btn btn-primary" href="{{ url_for('responsables_create') }}">
-          Nuevo responsable
-        </a>
+      <a class="btn btn-primary" href="{{ url_for('responsables_create') }}">
+        Nuevo responsable
+      </a>
       {% endif %}
     </div>
 
-    <div class="card shadow-sm">
+    <div class="card shadow-sm animate-fade-in">
       <div class="card-body p-0">
         <div class="table-responsive">
-          <table class="table table-striped align-middle m-0">
-            <thead class="table-light">
+          <table class="table table-modern align-middle m-0">
+            <thead>
               <tr>
-                <th>#</th>
-                <th>ID responsable</th>
-                <th>Nombre</th>
-                <th>Correo</th>
-                <th>Empresa</th>
+                <th><i class="bi bi-hash"></i> #</th>
+                <th><i class="bi bi-person-badge"></i> ID responsable</th>
+                <th><i class="bi bi-person"></i> Nombre</th>
+                <th><i class="bi bi-envelope"></i> Correo</th>
+                <th><i class="bi bi-building"></i> Empresa</th>
                 <th class="text-end">
-                  {% if is_admin %}Acciones{% endif %}
+                  <i class="bi bi-lightning"></i> {% if is_admin %}Acciones{%
+                  endif %}
                 </th>
               </tr>
             </thead>
@@ -54,40 +66,40 @@
                 <td>{{ r.nombre_responsable }}</td>
                 <td>
                   {% if r.correo_responsable %}
-                    <a href="mailto:{{ r.correo_responsable }}">{{ r.correo_responsable }}</a>
-                  {% else %}
-                    —
-                  {% endif %}
+                  <a href="mailto:{{ r.correo_responsable }}"
+                    >{{ r.correo_responsable }}</a
+                  >
+                  {% else %} — {% endif %}
                 </td>
                 <td>
-                  {% if r.empresa %}
-                    {{ r.empresa.identificacion }} — {{ r.empresa.nombre }}
-                  {% else %}
-                    —
-                  {% endif %}
+                  {% if r.empresa %} {{ r.empresa.identificacion }} — {{
+                  r.empresa.nombre }} {% else %} — {% endif %}
                 </td>
                 <td class="text-end">
                   {% if is_admin %}
-                    <a class="btn btn-sm btn-outline-primary"
-                       href="{{ url_for('responsables_edit', resp_id=r.id) }}">
-                      Editar
-                    </a>
+                  <a
+                    class="btn btn-sm btn-outline-primary"
+                    href="{{ url_for('responsables_edit', resp_id=r.id) }}"
+                  >
+                    <i class="bi bi-pencil"></i> Editar
+                  </a>
 
-                    <form class="d-inline" method="POST"
-                          action="{{ url_for('responsables_delete', resp_id=r.id) }}">
-                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                      <button class="btn btn-sm btn-outline-danger" type="submit"
-                              onclick="return confirm('¿Eliminar responsable {{ r.nombre_responsable }}?');">
-                        Eliminar
-                      </button>
-                    </form>
+                  <button
+                    class="btn btn-sm btn-outline-danger"
+                    type="button"
+                    onclick="showDeleteModal('{{ r.id }}', '{{ r.nombre_responsable }}', 'responsable')"
+                  >
+                    <i class="bi bi-trash"></i> Eliminar
+                  </button>
                   {% endif %}
                 </td>
               </tr>
               {% else %}
               <tr>
-                <td colspan="{{ 6 if is_admin else 5 }}"
-                    class="text-center py-4 text-muted">
+                <td
+                  colspan="{{ 6 if is_admin else 5 }}"
+                  class="text-center py-4 text-muted"
+                >
                   Sin responsables registrados.
                 </td>
               </tr>
@@ -97,7 +109,100 @@
         </div>
       </div>
     </div>
-
   </div>
 </div>
+
+<!-- Modal de confirmación con captcha -->
+<div
+  class="modal fade"
+  id="deleteModal"
+  tabindex="-1"
+  aria-labelledby="deleteModalLabel"
+  aria-hidden="true"
+>
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="deleteModalLabel">
+          ¿Eliminar responsable <span id="responsableName"></span>?
+        </h5>
+        <button
+          type="button"
+          class="btn-close btn-close-white"
+          data-bs-dismiss="modal"
+          aria-label="Close"
+        ></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted mb-4">
+          Por favor, completa el siguiente captcha para confirmar la
+          eliminación:
+        </p>
+
+        <div id="captchaContainer"></div>
+
+        <div
+          id="captchaError"
+          class="alert alert-danger mt-3"
+          style="display: none"
+        >
+          Captcha incorrecto. Inténtalo de nuevo.
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+          Cancelar
+        </button>
+        <button
+          type="button"
+          class="btn btn-danger"
+          onclick="verifyAndDelete()"
+        >
+          Aceptar
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<form id="deleteForm" method="POST" style="display: none">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+</form>
+
+<script>
+  let currentResponsableId = null;
+  let deleteModal = null;
+
+  document.addEventListener("DOMContentLoaded", function () {
+    deleteModal = new bootstrap.Modal(document.getElementById("deleteModal"));
+  });
+
+  function showDeleteModal(responsableId, responsableName, type) {
+    currentResponsableId = responsableId;
+    document.getElementById("responsableName").textContent = responsableName;
+    document.getElementById("captchaError").style.display = "none";
+
+    // Inicializar captcha
+    initializeCaptcha("captchaContainer");
+
+    deleteModal.show();
+  }
+
+  function verifyAndDelete() {
+    const isValid = verifyCaptcha();
+
+    if (isValid) {
+      // Captcha correcto, proceder con eliminación
+      const form = document.getElementById("deleteForm");
+      form.action = `/responsables/${currentResponsableId}/eliminar`;
+      form.submit();
+    } else {
+      // Captcha incorrecto
+      document.getElementById("captchaError").style.display = "block";
+      // Regenerar captcha
+      refreshCaptcha("captchaContainer");
+    }
+  }
+</script>
+
 {% endblock %}

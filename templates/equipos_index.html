@@ -34,24 +34,14 @@ content %}
           >Nuevo equipo</a
         >
 
-        <form
-          method="POST"
-          action="{{ url_for('equipos_delete_all') }}"
-          onsubmit="return confirm('⚠️ Esta acción eliminará TODOS los equipos registrados.\n\nNo se puede deshacer.\n\n¿Seguro que deseas continuar?');"
-        >
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+        <form method="GET" action="{{ url_for('equipos_delete_all') }}">
           <button type="submit" class="btn btn-outline-danger">
             <i class="bi bi-trash3"></i> Eliminar todos
           </button>
         </form>
 
         {# Eliminar equipos que coinciden con el filtro actual #}
-        <form
-          method="POST"
-          action="{{ url_for('equipos_delete_filtered') }}"
-          onsubmit="return confirm('⚠️ Esta acción eliminará TODOS los equipos que coinciden con el filtro actual ({{ q or 'sin filtro' }}).\n\nNo se puede deshacer.\n\n¿Seguro que deseas continuar?');"
-        >
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+        <form method="GET" action="{{ url_for('equipos_delete_filtered') }}">
           <input type="hidden" name="q" value="{{ q or '' }}" />
           <button type="submit" class="btn btn-outline-danger">
             <i class="bi bi-trash3"></i> Eliminar equipos filtrados
@@ -67,14 +57,16 @@ content %}
           <table class="table table-modern align-middle m-0">
             <thead>
               <tr>
-                <th>#</th>
-                <th>Código</th>
-                <th>Tipo</th>
-                <th>Marca/Modelo</th>
-                <th>Empresa</th>
-                <th>Estado</th>
-                <th>Ingreso</th>
-                <th class="text-end">Acciones</th>
+                <th><i class="bi bi-hash"></i> #</th>
+                <th><i class="bi bi-upc-scan"></i> Código</th>
+                <th><i class="bi bi-tag"></i> Tipo</th>
+                <th><i class="bi bi-gear-wide-connected"></i> Marca/Modelo</th>
+                <th><i class="bi bi-building"></i> Empresa</th>
+                <th><i class="bi bi-activity"></i> Estado</th>
+                <th><i class="bi bi-calendar-check"></i> Ingreso</th>
+                <th class="text-end">
+                  <i class="bi bi-lightning"></i> Acciones
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -99,19 +91,19 @@ content %}
                   <a
                     class="btn btn-sm btn-outline-secondary"
                     href="{{ url_for('equipos_show', equipo_id=e.id) }}"
-                    >Ver</a
+                    ><i class="bi bi-eye"></i> Ver</a
                   >
                   {% if current_user.role == 'admin' %}
                   <a
                     class="btn btn-sm btn-outline-primary"
                     href="{{ url_for('equipos_edit', equipo_id=e.id) }}"
-                    >Editar</a
+                    ><i class="bi bi-pencil"></i> Editar</a
                   >
                   <a
                     class="btn btn-sm btn-outline-secondary"
                     href="{{ url_for('audit_equipo_show', equipo_id=e.id) }}"
                   >
-                    Auditoría
+                    <i class="bi bi-clock-history"></i> Auditoría
                   </a>
 
                   <form

@@ -47,10 +47,13 @@ block content %} {% set is_admin = (current_user.role == 'admin') %}
           <table class="table table-modern align-middle m-0">
             <thead>
               <tr>
-                <th>#</th>
-                <th>Identificación</th>
-                <th>Nombre / razón social</th>
-                <th class="text-end">{% if is_admin %}Acciones{% endif %}</th>
+                <th><i class="bi bi-hash"></i> #</th>
+                <th><i class="bi bi-card-text"></i> Identificación</th>
+                <th><i class="bi bi-building"></i> Nombre / razón social</th>
+                <th class="text-end">
+                  <i class="bi bi-lightning"></i> {% if is_admin %}Acciones{%
+                  endif %}
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -69,27 +72,16 @@ block content %} {% set is_admin = (current_user.role == 'admin') %}
                     class="btn btn-sm btn-outline-primary"
                     href="{{ url_for('empresas_edit', empresa_id=e.id) }}"
                   >
-                    Editar
+                    <i class="bi bi-pencil"></i> Editar
                   </a>
 
-                  <form
-                    class="d-inline"
-                    method="POST"
-                    action="{{ url_for('empresas_delete', empresa_id=e.id) }}"
+                  <button
+                    class="btn btn-sm btn-outline-danger"
+                    type="button"
+                    onclick="showDeleteModal('{{ e.id }}', '{{ e.nombre }}', 'empresa')"
                   >
-                    <input
-                      type="hidden"
-                      name="csrf_token"
-                      value="{{ csrf_token() }}"
-                    />
-                    <button
-                      class="btn btn-sm btn-outline-danger"
-                      type="submit"
-                      onclick="return confirm('¿Eliminar empresa {{ e.nombre }}?');"
-                    >
-                      Eliminar
-                    </button>
-                  </form>
+                    <i class="bi bi-trash"></i> Eliminar
+                  </button>
                   {% endif %}
                 </td>
               </tr>
@@ -110,4 +102,98 @@ block content %} {% set is_admin = (current_user.role == 'admin') %}
     </div>
   </div>
 </div>
+
+<!-- Modal de confirmación con captcha -->
+<div
+  class="modal fade"
+  id="deleteModal"
+  tabindex="-1"
+  aria-labelledby="deleteModalLabel"
+  aria-hidden="true"
+>
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="deleteModalLabel">
+          ¿Eliminar empresa <span id="empresaName"></span>?
+        </h5>
+        <button
+          type="button"
+          class="btn-close btn-close-white"
+          data-bs-dismiss="modal"
+          aria-label="Close"
+        ></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted mb-4">
+          Por favor, completa el siguiente captcha para confirmar la
+          eliminación:
+        </p>
+
+        <div id="captchaContainer"></div>
+
+        <div
+          id="captchaError"
+          class="alert alert-danger mt-3"
+          style="display: none"
+        >
+          Captcha incorrecto. Inténtalo de nuevo.
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+          Cancelar
+        </button>
+        <button
+          type="button"
+          class="btn btn-danger"
+          onclick="verifyAndDelete()"
+        >
+          Aceptar
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<form id="deleteForm" method="POST" style="display: none">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+</form>
+
+<script>
+  let currentEmpresaId = null;
+  let deleteModal = null;
+
+  document.addEventListener("DOMContentLoaded", function () {
+    deleteModal = new bootstrap.Modal(document.getElementById("deleteModal"));
+  });
+
+  function showDeleteModal(empresaId, empresaName, type) {
+    currentEmpresaId = empresaId;
+    document.getElementById("empresaName").textContent = empresaName;
+    document.getElementById("captchaError").style.display = "none";
+
+    // Inicializar captcha
+    initializeCaptcha("captchaContainer");
+
+    deleteModal.show();
+  }
+
+  function verifyAndDelete() {
+    const isValid = verifyCaptcha();
+
+    if (isValid) {
+      // Captcha correcto, proceder con eliminación
+      const form = document.getElementById("deleteForm");
+      form.action = `/empresas/${currentEmpresaId}/eliminar`;
+      form.submit();
+    } else {
+      // Captcha incorrecto
+      document.getElementById("captchaError").style.display = "block";
+      // Regenerar captcha
+      refreshCaptcha("captchaContainer");
+    }
+  }
+</script>
+
 {% endblock %}
