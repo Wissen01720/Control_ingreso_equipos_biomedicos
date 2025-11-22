@@ -29,7 +29,10 @@ from models import (
     Notification, EmpresaExternaAudit, EmpresaExternaDeletion, 
     ResponsableEntregaAudit, ResponsableEntregaDeletion
 )
-from forms import LoginForm, UserCreateForm, UserEditForm, UserSelfEditForm, EquipoForm, EmpresaExternaForm,ResponsableEntregaForm
+from forms import (
+    LoginForm, UserCreateForm, UserEditForm, UserSelfEditForm, 
+    EquipoForm, EmpresaExternaForm, ResponsableEntregaForm, DeleteForm
+)
 
 
 from xhtml2pdf import pisa
@@ -82,6 +85,31 @@ SessionLocal = scoped_session(sessionmaker(bind=engine, autoflush=False, autocom
 Base.metadata.create_all(engine)
 
 
+# ---------- Context Manager para Sesiones DB (previene memory leaks) ----------
+from contextlib import contextmanager
+
+@contextmanager
+def get_db_session():
+    """
+    Context manager para sesiones de base de datos.
+    Garantiza commit automático al salir exitosamente,
+    rollback en caso de excepción, y cierre de sesión siempre.
+    
+    Uso:
+        with get_db_session() as db:
+            user = db.get(User, 1)
+            # cambios...
+            # commit automático al salir del with
+    """
+    db = SessionLocal()
+    try:
+        yield db
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
 
 
 # ---------- Flask-Login ----------
@@ -108,14 +136,16 @@ def remove_session(exception=None):
     SessionLocal.remove()
 
 
+# ========== SNAPSHOTS PARA AUDITORÍA ========== #
+
 def _equipo_snapshot(e):
+    """Crea un snapshot del estado de un equipo para auditoría."""
     return {
         "codigo_interno": e.codigo_interno,
         "tipo_equipo": e.tipo_equipo,
         "marca": e.marca,
         "modelo": e.modelo,
         "serial": e.serial,
-        #  snapshot con IDs 
         "empresa_id": e.empresa_id,
         "empresa_nombre": e.empresa.nombre if getattr(e, "empresa", None) else None,
         "responsable_id": e.responsable_id,
@@ -128,37 +158,87 @@ def _equipo_snapshot(e):
     }
 
 
+# ========== FUNCIONES AUXILIARES PARA AUDITORÍA ========== #
 
-def log_equipo_audit(db, *, equipo_id: int, action: str, detail: dict | None = None, actor_user_id: int | None = None): # registra auditoría de equipos
-    entry = EquipoAudit(
-        equipo_id=equipo_id,
-        actor_user_id=actor_user_id,
-        action=action,
-        detail=json.dumps(detail, ensure_ascii=False) if detail else None,
-        ip=_client_ip(request),
-        user_agent=_ua(request),
-    )
+def _client_ip(req) -> str | None:
+    """Obtiene la IP del cliente, respetando proxy/reverse-proxy."""
+    hdr = (req.headers.get("X-Forwarded-For") or "").split(",")[0].strip()
+    return hdr or req.remote_addr
+
+def _ua(req) -> str | None:
+    """Obtiene el User-Agent del navegador (truncado a 255 caracteres)."""
+    return (req.headers.get("User-Agent") or "")[:255]
+
+
+# ========== FUNCIÓN GENÉRICA DE AUDITORÍA (elimina código duplicado) ========== #
+
+def log_audit_generic(db, *, model_class, entity_id_field: str, entity_id: int, 
+                     action: str, detail: dict | None = None, 
+                     actor_user_id: int | None = None):
+    """
+    Función genérica para registrar auditoría en cualquier entidad.
+    
+    Args:
+        db: Sesión de base de datos
+        model_class: Clase del modelo de auditoría (UserAudit, EquipoAudit, etc.)
+        entity_id_field: Nombre del campo ID ("user_id", "equipo_id", etc.)
+        entity_id: ID de la entidad afectada
+        action: Acción realizada ("create", "update", "delete", etc.)
+        detail: Diccionario con detalles adicionales
+        actor_user_id: ID del usuario que realizó la acción
+    
+    Returns:
+        Entry de auditoría creada
+    """
+    audit_data = {
+        entity_id_field: entity_id,
+        "actor_user_id": actor_user_id,
+        "action": action,
+        "detail": json.dumps(detail, ensure_ascii=False) if detail else None,
+        "ip": _client_ip(request),
+        "user_agent": _ua(request),
+    }
+    entry = model_class(**audit_data)
     db.add(entry)
     db.commit()
     return entry
 
 
-# --- Funciones helper para auditoría de empresas ---
+# ========== FUNCIONES DE AUDITORÍA ESPECÍFICAS (wrappers de la función genérica) ========== #
+
+def log_audit(db, user_id: int, action: str, detail: dict | None = None, actor_user_id: int | None = None):
+    """Registra auditoría de usuarios."""
+    return log_audit_generic(
+        db, model_class=UserAudit, entity_id_field="user_id",
+        entity_id=user_id, action=action, detail=detail, actor_user_id=actor_user_id
+    )
+
+def log_equipo_audit(db, *, equipo_id: int, action: str, detail: dict | None = None, actor_user_id: int | None = None):
+    """Registra auditoría de equipos."""
+    return log_audit_generic(
+        db, model_class=EquipoAudit, entity_id_field="equipo_id",
+        entity_id=equipo_id, action=action, detail=detail, actor_user_id=actor_user_id
+    )
+
 def log_empresa_audit(db, *, empresa_id: int, action: str, detail: dict | None = None, actor_user_id: int | None = None):
-    entry = EmpresaExternaAudit(
-        empresa_id=empresa_id,
-        actor_user_id=actor_user_id,
-        action=action,
-        detail=json.dumps(detail, ensure_ascii=False) if detail else None,
-        ip=_client_ip(request),
-        user_agent=_ua(request),
+    """Registra auditoría de empresas externas."""
+    return log_audit_generic(
+        db, model_class=EmpresaExternaAudit, entity_id_field="empresa_id",
+        entity_id=empresa_id, action=action, detail=detail, actor_user_id=actor_user_id
     )
-    db.add(entry)
-    db.commit()
-    return entry
 
+def log_responsable_audit(db, *, responsable_id: int, action: str, detail: dict | None = None, actor_user_id: int | None = None):
+    """Registra auditoría de responsables de entrega."""
+    return log_audit_generic(
+        db, model_class=ResponsableEntregaAudit, entity_id_field="responsable_id",
+        entity_id=responsable_id, action=action, detail=detail, actor_user_id=actor_user_id
+    )
+
+
+# ========== FUNCIONES DE ELIMINACIÓN (deletion records) ========== #
 
 def log_empresa_deletion(db, empresa: EmpresaExterna, actor_user_id: int | None = None):
+    """Registra la eliminación de una empresa externa."""
     entry = EmpresaExternaDeletion(
         empresa_id=empresa.id,
         identificacion=empresa.identificacion,
@@ -171,23 +251,8 @@ def log_empresa_deletion(db, empresa: EmpresaExterna, actor_user_id: int | None 
     db.commit()
     return entry
 
-
-# --- Funciones helper para auditoría de responsables ---
-def log_responsable_audit(db, *, responsable_id: int, action: str, detail: dict | None = None, actor_user_id: int | None = None):
-    entry = ResponsableEntregaAudit(
-        responsable_id=responsable_id,
-        actor_user_id=actor_user_id,
-        action=action,
-        detail=json.dumps(detail, ensure_ascii=False) if detail else None,
-        ip=_client_ip(request),
-        user_agent=_ua(request),
-    )
-    db.add(entry)
-    db.commit()
-    return entry
-
-
 def log_responsable_deletion(db, responsable: ResponsableEntrega, actor_user_id: int | None = None):
+    """Registra la eliminación de un responsable de entrega."""
     entry = ResponsableEntregaDeletion(
         responsable_id=responsable.id,
         id_responsable=responsable.id_responsable,
@@ -518,8 +583,8 @@ def reportes():
         # 4.2) Equipos por empresa (top 10)
         rows_empresas = (
             base_q
-            .with_entities(EmpresaExterna.nombre, func.count(Equipo.id))
-            .group_by(EmpresaExterna.id, EmpresaExterna.nombre)
+            .with_entities(EmpresaExterna.nombre_empresa, func.count(Equipo.id))
+            .group_by(EmpresaExterna.id, EmpresaExterna.nombre_empresa)
             .order_by(func.count(Equipo.id).desc())
             .limit(10)
             .all()
@@ -537,7 +602,7 @@ def reportes():
         # --------- 5) Empresas para el <select> de filtros ---------
         empresas = (
             db.query(EmpresaExterna)
-              .order_by(EmpresaExterna.nombre.asc())
+              .order_by(EmpresaExterna.nombre_empresa.asc())
               .all()
         )
 
@@ -757,7 +822,7 @@ def users_edit(user_id: int):
 
 
 
-@app.route("/usuarios/<int:user_id>/eliminar", methods=["POST"])
+@app.route("/usuarios/<int:user_id>/eliminar", methods=["GET", "POST"])
 @login_required
 @admin_required
 def users_delete(user_id: int):
@@ -771,15 +836,25 @@ def users_delete(user_id: int):
         if not u:
             raise NotFound()
 
-        # 1) Guardar snapshot en papelera (sin audit_row)
-        record_user_deletion(db, u, actor_id=current_user.id)
+        form = DeleteForm()
+        
+        if form.validate_on_submit():
+            # 1) Guardar snapshot en papelera (sin audit_row)
+            record_user_deletion(db, u, actor_id=current_user.id)
 
-        # 2) Borrado real
-        db.delete(u)
-        db.commit()
+            # 2) Borrado real
+            db.delete(u)
+            db.commit()
 
-        flash("Usuario eliminado.", "info")
-        return redirect(url_for("users_index"))
+            flash(f"Usuario '{u.username}' eliminado correctamente.", "success")
+            return redirect(url_for("users_index"))
+        
+        # GET: mostrar confirmación
+        return render_template("confirm_delete.html", 
+                             form=form,
+                             item_type="usuario",
+                             item_name=f"{u.username} ({u.email})",
+                             cancel_url=url_for("users_index"))
     finally:
         db.close()
 
@@ -879,29 +954,8 @@ def self_edit_profile():
 
 
 
-# --- Auditoría de acciones para usuarios, es para obtener IP y User-Agent ---
-def _client_ip(req) -> str | None:
-    # Respeta proxy/reverse-proxy (si lo llevamos en producción a futuro a Render/NGINX)
-    hdr = (req.headers.get("X-Forwarded-For") or "").split(",")[0].strip()
-    return hdr or req.remote_addr
-
-# --- Auditoría de acciones para usuarios, en esta User-Agent es para obtener el navegador ---
-def _ua(req) -> str | None:
-    return (req.headers.get("User-Agent") or "")[:255]
-
-# --- Auditoría de acciones para usuarios, en esta función se registra la auditoría ---
-def log_audit(db, user_id: int, action: str, detail: dict | None = None, actor_user_id: int | None = None):
-    entry = UserAudit(
-        user_id=user_id,
-        actor_user_id=actor_user_id,
-        action=action,
-        detail=json.dumps(detail, ensure_ascii=False) if detail else None,
-        ip=_client_ip(request),
-        user_agent=_ua(request),
-    )
-    db.add(entry)
-    db.commit()
-    return entry  
+# Nota: Las funciones _client_ip, _ua y log_audit ahora están definidas
+# junto con las demás funciones de auditoría al inicio del archivo  
 
 
 
@@ -1132,9 +1186,13 @@ def record_equipo_deletion(db, e, actor_id: int | None): # registra la eliminaci
         marca=e.marca,
         modelo=e.modelo,
         serial=e.serial,
-        # snapshot de los nombres
-        empresa_externa=e.empresa.nombre if e.empresa else None,
-        responsable_entrega=e.responsable.nombre_responsable if e.responsable else None,
+        # snapshot de IDs
+        empresa_externa_id=e.empresa_id,
+        responsable_entrega_id=e.responsable_id,
+        # snapshot de los nombres (texto)
+        empresa_externa=e.empresa_externa,
+        responsable_entrega=e.responsable_entrega,
+        identificacion_responsable=e.identificacion_responsable,
         estado=e.estado,
         fecha_ingreso=e.fecha_ingreso,
         fecha_salida=e.fecha_salida,
@@ -1199,9 +1257,9 @@ def empresas_index():
             like = f"%{q.lower()}%"
             qry = qry.filter(or_(
                 EmpresaExterna.identificacion.ilike(like),
-                EmpresaExterna.nombre.ilike(like),
+                EmpresaExterna.nombre_empresa.ilike(like),
             ))
-        empresas = qry.order_by(EmpresaExterna.nombre.asc()).all()
+        empresas = qry.order_by(EmpresaExterna.nombre_empresa.asc()).all()
         return render_template("empresas_index.html", empresas=empresas, q=q)
     finally:
         db.close()
@@ -1228,6 +1286,11 @@ def empresas_create():
             emp = EmpresaExterna(
                 identificacion=ident,
                 nombre=nombre,
+                contacto_nombre=(form.contacto_nombre.data or "").strip() or None,
+                contacto_telefono=(form.contacto_telefono.data or "").strip() or None,
+                contacto_email=(form.contacto_email.data or "").strip() or None,
+                direccion=(form.direccion.data or "").strip() or None,
+                observaciones=(form.observaciones.data or "").strip() or None,
             )
             db.add(emp)
             db.flush()  # Para obtener el ID
@@ -1237,7 +1300,15 @@ def empresas_create():
                 db, 
                 empresa_id=emp.id, 
                 action="create",
-                detail={"identificacion": ident, "nombre": nombre},
+                detail={
+                    "identificacion": ident,
+                    "nombre": nombre,
+                    "contacto_nombre": emp.contacto_nombre,
+                    "contacto_telefono": emp.contacto_telefono,
+                    "contacto_email": emp.contacto_email,
+                    "direccion": emp.direccion,
+                    "observaciones": emp.observaciones
+                },
                 actor_user_id=current_user.id
             )
 
@@ -1289,11 +1360,21 @@ def empresas_edit(empresa_id: int):
             # Guardar valores anteriores para auditoría
             old_values = {
                 "identificacion": emp.identificacion,
-                "nombre": emp.nombre
+                "nombre": emp.nombre,
+                "contacto_nombre": emp.contacto_nombre,
+                "contacto_telefono": emp.contacto_telefono,
+                "contacto_email": emp.contacto_email,
+                "direccion": emp.direccion,
+                "observaciones": emp.observaciones
             }
 
             emp.identificacion = new_ident
             emp.nombre = new_nombre
+            emp.contacto_nombre = (form.contacto_nombre.data or "").strip() or None
+            emp.contacto_telefono = (form.contacto_telefono.data or "").strip() or None
+            emp.contacto_email = (form.contacto_email.data or "").strip() or None
+            emp.direccion = (form.direccion.data or "").strip() or None
+            emp.observaciones = (form.observaciones.data or "").strip() or None
 
             db.add(emp)
             db.flush()
@@ -1305,13 +1386,21 @@ def empresas_edit(empresa_id: int):
                 action="update",
                 detail={
                     "old": old_values,
-                    "new": {"identificacion": new_ident, "nombre": new_nombre}
+                    "new": {
+                        "identificacion": new_ident,
+                        "nombre": new_nombre,
+                        "contacto_nombre": emp.contacto_nombre,
+                        "contacto_telefono": emp.contacto_telefono,
+                        "contacto_email": emp.contacto_email,
+                        "direccion": emp.direccion,
+                        "observaciones": emp.observaciones
+                    }
                 },
                 actor_user_id=current_user.id
             )
 
             # Notificar a todos los admins
-            notify_all_admins(
+            notify_admins(
                 db,
                 title="Empresa actualizada",
                 body=f"Se ha actualizado la empresa '{new_nombre}' por {current_user.username}",
@@ -1341,12 +1430,12 @@ def responsables_index():
                 ResponsableEntrega.id_responsable.ilike(like),
                 ResponsableEntrega.nombre_responsable.ilike(like),
                 ResponsableEntrega.correo_responsable.ilike(like),
-                EmpresaExterna.nombre.ilike(like),
+                EmpresaExterna.nombre_empresa.ilike(like),
                 EmpresaExterna.identificacion.ilike(like),
             ))
 
         responsables = qry.order_by(
-            EmpresaExterna.nombre.asc(),
+            EmpresaExterna.nombre_empresa.asc(),
             ResponsableEntrega.nombre_responsable.asc()
         ).all()
 
@@ -1363,7 +1452,7 @@ def responsables_create():
     try:
         empresas = (
             db.query(EmpresaExterna)
-              .order_by(EmpresaExterna.nombre.asc())
+              .order_by(EmpresaExterna.nombre_empresa.asc())
               .all()
         )
 
@@ -1414,7 +1503,7 @@ def responsables_create():
             )
 
             # Notificar a todos los admins
-            notify_all_admins(
+            notify_admins(
                 db,
                 title="Nuevo responsable creado",
                 body=f"Se ha creado el responsable '{nombre}' por {current_user.username}",
@@ -1445,7 +1534,7 @@ def responsables_edit(resp_id: int):
 
         empresas = (
             db.query(EmpresaExterna)
-              .order_by(EmpresaExterna.nombre.asc())
+              .order_by(EmpresaExterna.nombre_empresa.asc())
               .all()
         )
 
@@ -1511,7 +1600,7 @@ def responsables_edit(resp_id: int):
             )
 
             # Notificar a todos los admins
-            notify_all_admins(
+            notify_admins(
                 db,
                 title="Responsable actualizado",
                 body=f"Se ha actualizado el responsable '{new_nombre}' por {current_user.username}",
@@ -1528,7 +1617,7 @@ def responsables_edit(resp_id: int):
         db.close()
 
 
-@app.route("/empresas/<int:empresa_id>/eliminar", methods=["POST"])
+@app.route("/empresas/<int:empresa_id>/eliminar", methods=["GET", "POST"])
 @login_required
 @admin_required
 def empresas_delete(empresa_id: int):
@@ -1544,27 +1633,37 @@ def empresas_delete(empresa_id: int):
             flash("No puedes eliminar la empresa porque tiene equipos asociados.", "warning")
             return redirect(url_for("empresas_index"))
 
-        # Guardar snapshot antes de eliminar
-        log_empresa_deletion(db, emp, actor_user_id=current_user.id)
+        form = DeleteForm()
+        
+        if form.validate_on_submit():
+            # Guardar snapshot antes de eliminar
+            log_empresa_deletion(db, emp, actor_user_id=current_user.id)
 
-        # Notificar a todos los admins
-        notify_all_admins(
-            db,
-            title="Empresa eliminada",
-            body=f"Se ha eliminado la empresa '{emp.nombre}' (ID: {emp.identificacion}) por {current_user.username}",
-            level="warning"
-        )
+            # Notificar a todos los admins
+            notify_admins(
+                db,
+                title="Empresa eliminada",
+                body=f"Se ha eliminado la empresa '{emp.nombre}' (ID: {emp.identificacion}) por {current_user.username}",
+                level="warning"
+            )
 
-        # Si no hay equipos, se puede eliminar.
-        db.delete(emp)
-        db.commit()
-        flash("Empresa eliminada correctamente.", "info")
-        return redirect(url_for("empresas_index"))
+            # Si no hay equipos, se puede eliminar.
+            db.delete(emp)
+            db.commit()
+            flash("Empresa eliminada correctamente.", "success")
+            return redirect(url_for("empresas_index"))
+        
+        # GET: mostrar confirmación
+        return render_template("confirm_delete.html",
+                             form=form,
+                             item_type="empresa",
+                             item_name=f"{emp.nombre} (ID: {emp.identificacion})",
+                             cancel_url=url_for("empresas_index"))
     finally:
         db.close()
 
 
-@app.route("/responsables/<int:resp_id>/eliminar", methods=["POST"])
+@app.route("/responsables/<int:resp_id>/eliminar", methods=["GET", "POST"])
 @login_required
 @admin_required
 def responsables_delete(resp_id: int):
@@ -1580,21 +1679,31 @@ def responsables_delete(resp_id: int):
             flash("No puedes eliminar el responsable porque tiene equipos asociados.", "warning")
             return redirect(url_for("responsables_index"))
 
-        # Guardar snapshot antes de eliminar
-        log_responsable_deletion(db, resp, actor_user_id=current_user.id)
+        form = DeleteForm()
+        
+        if form.validate_on_submit():
+            # Guardar snapshot antes de eliminar
+            log_responsable_deletion(db, resp, actor_user_id=current_user.id)
 
-        # Notificar a todos los admins
-        notify_all_admins(
-            db,
-            title="Responsable eliminado",
-            body=f"Se ha eliminado el responsable '{resp.nombre_responsable}' por {current_user.username}",
-            level="warning"
-        )
+            # Notificar a todos los admins
+            notify_admins(
+                db,
+                title="Responsable eliminado",
+                body=f"Se ha eliminado el responsable '{resp.nombre_responsable}' por {current_user.username}",
+                level="warning"
+            )
 
-        db.delete(resp)
-        db.commit()
-        flash("Responsable eliminado correctamente.", "info")
-        return redirect(url_for("responsables_index"))
+            db.delete(resp)
+            db.commit()
+            flash("Responsable eliminado correctamente.", "success")
+            return redirect(url_for("responsables_index"))
+        
+        # GET: mostrar confirmación
+        return render_template("confirm_delete.html",
+                             form=form,
+                             item_type="responsable",
+                             item_name=f"{resp.nombre_responsable} ({resp.id_responsable})",
+                             cancel_url=url_for("responsables_index"))
     finally:
         db.close()
 
@@ -1786,7 +1895,7 @@ def equipos_index():
                 Equipo.marca.ilike(like),
                 Equipo.modelo.ilike(like),
                 Equipo.serial.ilike(like),
-                EmpresaExterna.nombre.ilike(like),
+                EmpresaExterna.nombre_empresa.ilike(like),
                 EmpresaExterna.identificacion.ilike(like),
                 ResponsableEntrega.nombre_responsable.ilike(like),
                 ResponsableEntrega.id_responsable.ilike(like),
@@ -1826,7 +1935,6 @@ def equipos_show(equipo_id: int):
         e = (
                 db.query(Equipo)
                 .options(
-                    joinedload(Equipo.autorizador),
                     joinedload(Equipo.empresa),
                     joinedload(Equipo.responsable),
                 )
@@ -1850,10 +1958,9 @@ def equipos_show(equipo_id: int):
 def equipos_create():
     db = SessionLocal()
     try:
-        # Usuarios que pueden autorizar
+        # Usuarios que pueden autorizar (TODOS los usuarios)
         usuarios_autorizadores = (
             db.query(User)
-              .filter(User.role == "usuario")
               .order_by(User.identificacion.asc(), User.username.asc())
               .all()
         )
@@ -1861,7 +1968,7 @@ def equipos_create():
         # Empresas externas
         empresas = (
             db.query(EmpresaExterna)
-              .order_by(EmpresaExterna.nombre.asc())
+              .order_by(EmpresaExterna.nombre_empresa.asc())
               .all()
         )
 
@@ -1869,7 +1976,7 @@ def equipos_create():
         responsables = (
             db.query(ResponsableEntrega)
               .join(EmpresaExterna)
-              .order_by(EmpresaExterna.nombre.asc(), ResponsableEntrega.nombre_responsable.asc())
+              .order_by(EmpresaExterna.nombre_empresa.asc(), ResponsableEntrega.nombre_responsable.asc())
               .all()
         )
 
@@ -1939,14 +2046,22 @@ def equipos_create():
                     responsables=responsables,
                 )
 
+            # Obtener empresa y responsable para llenar campos de texto
+            empresa = db.get(EmpresaExterna, form.empresa_id.data)
+            
             e = Equipo(
                 codigo_interno=code,
                 tipo_equipo=form.tipo_equipo.data,
                 marca=(form.marca.data or "").strip() or None,
                 modelo=(form.modelo.data or "").strip() or None,
                 serial=serial,
+                # FKs
                 empresa_id=form.empresa_id.data,
                 responsable_id=form.responsable_id.data,
+                # Campos de texto (para compatibilidad)
+                empresa_externa=empresa.nombre_empresa if empresa else "",
+                responsable_entrega=resp.nombre_responsable if resp else "",
+                identificacion_responsable=resp.id_responsable if resp else None,
                 fecha_ingreso=form.fecha_ingreso.data,
                 fecha_salida=form.fecha_salida.data,
                 estado=form.estado.data,
@@ -2060,24 +2175,23 @@ def equipos_edit(equipo_id: int):
             flash("Equipo no encontrado.", "warning")
             return redirect(url_for("equipos_index"))
 
-        #  Usuarios que pueden autorizar (rol 'usuario')
+        # Usuarios que pueden autorizar (TODOS los usuarios)
         usuarios_autorizadores = (
             db.query(User)
-              .filter(User.role == "usuario")
               .order_by(User.identificacion.asc(), User.username.asc())
               .all()
         )
 
         empresas = (
             db.query(EmpresaExterna)
-              .order_by(EmpresaExterna.nombre.asc())
+              .order_by(EmpresaExterna.nombre_empresa.asc())
               .all()
         )
 
         responsables = (
             db.query(ResponsableEntrega)
               .join(EmpresaExterna)
-              .order_by(EmpresaExterna.nombre.asc(), ResponsableEntrega.nombre_responsable.asc())
+              .order_by(EmpresaExterna.nombre_empresa.asc(), ResponsableEntrega.nombre_responsable.asc())
               .all()
         )
 
@@ -2153,6 +2267,9 @@ def equipos_edit(equipo_id: int):
                     responsables=responsables,
                 )
 
+            # Obtener empresa para campos de texto
+            empresa = db.get(EmpresaExterna, form.empresa_id.data)
+
             # Snapshot ANTES (para auditoría)
             before = _equipo_snapshot(e)
             old_aut_id = e.autorizado_por  # puede ser None
@@ -2163,8 +2280,13 @@ def equipos_edit(equipo_id: int):
             e.marca = (form.marca.data or "").strip() or None
             e.modelo = (form.modelo.data or "").strip() or None
             e.serial = serial
+            # FKs
             e.empresa_id = form.empresa_id.data
             e.responsable_id = form.responsable_id.data
+            # Campos de texto (para compatibilidad)
+            e.empresa_externa = empresa.nombre_empresa if empresa else ""
+            e.responsable_entrega = resp.nombre_responsable if resp else ""
+            e.identificacion_responsable = resp.id_responsable if resp else None
 
             e.fecha_ingreso = form.fecha_ingreso.data
             e.fecha_salida = form.fecha_salida.data
@@ -2214,15 +2336,31 @@ def equipos_edit(equipo_id: int):
 
             if old_aut_id != new_aut_id:
                 # Recuperar usuarios viejo/nuevo (los que apliquen)
-                ids = [i for i in [old_aut_id, new_aut_id] if i]
+                # Convertir strings a integers
+                ids = []
+                for i in [old_aut_id, new_aut_id]:
+                    if i:
+                        try:
+                            ids.append(int(i))
+                        except (ValueError, TypeError):
+                            pass
+                
                 usuarios_map = {}
                 if ids:
                     usuarios = db.query(User).filter(User.id.in_(ids)).all()
                     usuarios_map = {u.id: u for u in usuarios}
 
                 # Notificar al nuevo autorizado
-                if new_aut_id and new_aut_id in usuarios_map:
-                    nuevo = usuarios_map[new_aut_id]
+                # Convertir new_aut_id a int para comparar
+                new_aut_int = None
+                if new_aut_id:
+                    try:
+                        new_aut_int = int(new_aut_id)
+                    except (ValueError, TypeError):
+                        pass
+                
+                if new_aut_int and new_aut_int in usuarios_map:
+                    nuevo = usuarios_map[new_aut_int]
                     notify_user(
                         db,
                         user_id=nuevo.id,
@@ -2237,8 +2375,16 @@ def equipos_edit(equipo_id: int):
                     )
 
                 # Notificar al anterior autorizado (si existía y es distinto)
-                if old_aut_id and old_aut_id in usuarios_map:
-                    anterior = usuarios_map[old_aut_id]
+                # Convertir old_aut_id a int para comparar
+                old_aut_int = None
+                if old_aut_id:
+                    try:
+                        old_aut_int = int(old_aut_id)
+                    except (ValueError, TypeError):
+                        pass
+                
+                if old_aut_int and old_aut_int in usuarios_map:
+                    anterior = usuarios_map[old_aut_int]
                     notify_user(
                         db,
                         user_id=anterior.id,
@@ -2296,37 +2442,10 @@ def equipos_edit(equipo_id: int):
 
 
 # ------------------ Eliminar equipo ------------------
-@app.route("/equipos/<int:equipo_id>/eliminar", methods=["POST"])
+@app.route("/equipos/<int:equipo_id>/eliminar", methods=["GET", "POST"])
 @login_required
 @admin_required
 def equipos_delete(equipo_id: int):
-    # --- Validar mini-captcha con varias operaciones ---
-    try:
-        a = int(request.form.get("cap_a", 0))
-        b = int(request.form.get("cap_b", 0))
-        op = request.form.get("cap_op", "+")
-        r = int(request.form.get("cap_result", -1))
-    except ValueError:
-        a = b = 0
-        r = -1
-        op = "+"
-
-    # --- Evaluar resultado esperado ---
-    if op == "+":
-        esperado = a + b
-    elif op == "-":
-        esperado = a - b
-    elif op == "×":
-        esperado = a * b
-    elif op == "÷":
-        esperado = a // b if b != 0 else None
-    else:
-        esperado = None
-
-    if esperado is None or r != esperado:
-        flash("⚠️ No se confirmó correctamente la operación de eliminación.", "warning")
-        return redirect(url_for("equipos_index"))
-
     db = SessionLocal()
     try:
         e = db.get(Equipo, equipo_id)
@@ -2334,28 +2453,38 @@ def equipos_delete(equipo_id: int):
             flash("Equipo no encontrado.", "warning")
             return redirect(url_for("equipos_index"))
 
-        # Snapshot, eliminación y auditoría
-        snapshot = _equipo_snapshot(e) | {"id": e.id}
-        record_equipo_deletion(db, e, actor_id=current_user.id)
-        db.delete(e)
-        db.commit()
+        form = DeleteForm()
+        
+        if form.validate_on_submit():
+            # Snapshot, eliminación y auditoría
+            snapshot = _equipo_snapshot(e) | {"id": e.id}
+            record_equipo_deletion(db, e, actor_id=current_user.id)
+            db.delete(e)
+            db.commit()
 
-        notify_admins(
-            db,
-            title=f"Equipo eliminado: {e.codigo_interno}",
-            body=f"Actor: {current_user.username}",
-            level="warning",
-        )
+            notify_admins(
+                db,
+                title=f"Equipo eliminado: {e.codigo_interno}",
+                body=f"Actor: {current_user.username}",
+                level="warning",
+            )
 
-        flash("✅ Equipo eliminado correctamente.", "info")
-        return redirect(url_for("equipos_index"))
+            flash("✅ Equipo eliminado correctamente.", "success")
+            return redirect(url_for("equipos_index"))
+        
+        # GET: mostrar confirmación
+        return render_template("confirm_delete.html",
+                             form=form,
+                             item_type="equipo",
+                             item_name=f"{e.codigo_interno} ({e.marca} {e.modelo})",
+                             cancel_url=url_for("equipos_index"))
     finally:
         db.close()
 
 
 
 
-@app.route("/equipos/eliminar-todos", methods=["POST"])
+@app.route("/equipos/eliminar-todos", methods=["GET", "POST"])
 @login_required
 @admin_required
 def equipos_delete_all():
@@ -2367,40 +2496,50 @@ def equipos_delete_all():
             flash("No hay equipos para eliminar.", "info")
             return redirect(url_for("equipos_index"))
 
-        count = 0
-        for e in equipos:
-            # Guardar snapshot en tabla de eliminados (papelera)
-            record_equipo_deletion(db, e, actor_id=current_user.id)
-            # Borrado real del equipo
-            db.delete(e)
-            count += 1
+        form = DeleteForm()
+        
+        if form.validate_on_submit():
+            count = 0
+            for e in equipos:
+                # Guardar snapshot en tabla de eliminados (papelera)
+                record_equipo_deletion(db, e, actor_id=current_user.id)
+                # Borrado real del equipo
+                db.delete(e)
+                count += 1
 
-        db.commit()
+            db.commit()
 
-        # Notificar a todos los administradores
-        notify_admins(
-            db,
-            title="Eliminación masiva de equipos",
-            body=f"Se eliminaron {count} equipos. Actor: {current_user.username}",
-            level="danger",
-        )
+            # Notificar a todos los administradores
+            notify_admins(
+                db,
+                title="Eliminación masiva de equipos",
+                body=f"Se eliminaron {count} equipos. Actor: {current_user.username}",
+                level="danger",
+            )
 
-        flash(f"Se eliminaron {count} equipos.", "warning")
-        return redirect(url_for("equipos_index"))
+            flash(f"Se eliminaron {count} equipos correctamente.", "success")
+            return redirect(url_for("equipos_index"))
+        
+        # GET: mostrar confirmación
+        return render_template("confirm_delete.html",
+                             form=form,
+                             item_type="TODOS los equipos",
+                             item_name=f"{len(equipos)} equipos en total",
+                             cancel_url=url_for("equipos_index"))
     finally:
         db.close()
 
 
-@app.route("/equipos/eliminar-filtrados", methods=["POST"])
+@app.route("/equipos/eliminar-filtrados", methods=["GET", "POST"])
 @login_required
 @admin_required
 def equipos_delete_filtered():
-    q = (request.form.get("q") or "").strip()
+    q = (request.args.get("q") or request.form.get("q") or "").strip()
 
     db = SessionLocal()
     try:
         # Armar la misma query base que en equipos_index
-        qry = db.query(Equipo).join(EmpresaExterna).join(ResponsableEntrega)
+        qry = db.query(Equipo)
 
         if q:
             like = f"%{q.lower()}%"
@@ -2409,10 +2548,9 @@ def equipos_delete_filtered():
                 Equipo.marca.ilike(like),
                 Equipo.modelo.ilike(like),
                 Equipo.serial.ilike(like),
-                EmpresaExterna.nombre.ilike(like),
-                EmpresaExterna.identificacion.ilike(like),
-                ResponsableEntrega.nombre_responsable.ilike(like),
-                ResponsableEntrega.id_responsable.ilike(like),
+                Equipo.empresa_externa.ilike(like),
+                Equipo.responsable_entrega.ilike(like),
+                Equipo.identificacion_responsable.ilike(like),
                 cast(Equipo.estado, String).ilike(like),
                 cast(Equipo.tipo_equipo, String).ilike(like),
             ))
@@ -2421,30 +2559,41 @@ def equipos_delete_filtered():
 
         if not equipos:
             flash("No hay equipos que coincidan con el filtro para eliminar.", "info")
-            # Volver manteniendo el filtro (por si luego quiere revisar)
             return redirect(url_for("equipos_index", q=q or None))
 
-        count = 0
-        for e in equipos:
-            # Guardar en tabla de eliminados (papelera)
-            record_equipo_deletion(db, e, actor_id=current_user.id)
-            # Borrado real sobre el equipo
-            db.delete(e)
-            count += 1
+        form = DeleteForm()
+        
+        if form.validate_on_submit():
+            count = 0
+            for e in equipos:
+                # Guardar en tabla de eliminados (papelera)
+                record_equipo_deletion(db, e, actor_id=current_user.id)
+                # Borrado real sobre el equipo
+                db.delete(e)
+                count += 1
 
-        db.commit()
+            db.commit()
 
-        # Notificar a admins
-        filtro_desc = q if q else "sin filtro (todos)"
-        notify_admins(
-            db,
-            title="Eliminación masiva de equipos (filtrados)",
-            body=f"Se eliminaron {count} equipos con filtro: {filtro_desc}. Actor: {current_user.username}",
-            level="danger",
-        )
+            # Notificar a admins
+            filtro_desc = q if q else "sin filtro (todos)"
+            notify_admins(
+                db,
+                title="Eliminación masiva de equipos (filtrados)",
+                body=f"Se eliminaron {count} equipos con filtro: {filtro_desc}. Actor: {current_user.username}",
+                level="danger",
+            )
 
-        flash(f"Se eliminaron {count} equipos que coincidían con el filtro.", "warning")
-        return redirect(url_for("equipos_index"))
+            flash(f"Se eliminaron {count} equipos que coincidían con el filtro.", "success")
+            return redirect(url_for("equipos_index"))
+        
+        # GET: mostrar confirmación
+        filtro_desc = f"con filtro '{q}'" if q else "sin filtro"
+        return render_template("confirm_delete.html",
+                             form=form,
+                             item_type="equipos filtrados",
+                             item_name=f"{len(equipos)} equipos {filtro_desc}",
+                             cancel_url=url_for("equipos_index", q=q or None),
+                             extra_params={"q": q} if q else None)
 
     finally:
         db.close()
@@ -2894,3 +3043,4 @@ def _export_equipos_pdf(equipos, filtros: dict):
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=8095)
+

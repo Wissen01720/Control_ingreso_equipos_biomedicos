@@ -14,7 +14,6 @@ from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship, backref
 
 
-
 class Base(DeclarativeBase):  # para heredar en los modelos, es decir para hacer el mapeo ORM
     pass # pass es para indicar que no hay nada más que hacer aquí, es un marcador de posición.
 
@@ -133,23 +132,48 @@ class EmpresaExterna(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
 
-    # Identificación de la empresa (NIT/código), única y manual
+    # Identificación de la empresa (NIT/código)
     identificacion: Mapped[str] = mapped_column(
         String(30),
-        unique=True,
         nullable=False,
         index=True
     )
 
-    # Nombre / razón social
-    nombre: Mapped[str] = mapped_column(
+    # Nombre de la empresa (nombre_empresa en la BD)
+    nombre_empresa: Mapped[str] = mapped_column(
         String(150),
         nullable=False,
         index=True
     )
+    
+    # Campos opcionales
+    contacto_nombre: Mapped[str | None] = mapped_column(String(150))
+    contacto_telefono: Mapped[str | None] = mapped_column(String(50))
+    contacto_email: Mapped[str | None] = mapped_column(String(120))
+    direccion: Mapped[str | None] = mapped_column(Text)
+    observaciones: Mapped[str | None] = mapped_column(Text)
+    activo: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=False),
+        server_default=func.now(),
+        nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=False),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False
+    )
 
-    # Relación inversa: una empresa puede tener varios equipos
-    equipos = relationship("Equipo", back_populates="empresa")
+    # Property para compatibilidad con código que usa .nombre
+    @property
+    def nombre(self):
+        return self.nombre_empresa
+    
+    @nombre.setter
+    def nombre(self, value):
+        self.nombre_empresa = value
 
 
 class ResponsableEntrega(Base):
@@ -184,7 +208,6 @@ class ResponsableEntrega(Base):
     )
 
     empresa = relationship("EmpresaExterna")
-    equipos = relationship("Equipo", back_populates="responsable")
 
 
 # ================== EQUIPOS ================== #
@@ -227,17 +250,22 @@ class Equipo(Base):
     modelo: Mapped[str | None] = mapped_column(String(100))
     serial: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
 
-    # 🔴 AHORA: FKs en lugar de texto suelto
-    empresa_id: Mapped[int] = mapped_column(
+    # Campos de texto (mantenidos por compatibilidad/migración)
+    empresa_externa: Mapped[str] = mapped_column(String(150), nullable=False)
+    responsable_entrega: Mapped[str] = mapped_column(String(150), nullable=False)
+    identificacion_responsable: Mapped[str | None] = mapped_column(String(50))
+
+    # Foreign Keys (nuevas columnas)
+    empresa_id: Mapped[int | None] = mapped_column(
         Integer,
         ForeignKey("empresas_externas.id", ondelete="RESTRICT"),
-        nullable=False,
+        nullable=True,  # Temporal durante migración
         index=True
     )
-    responsable_id: Mapped[int] = mapped_column(
+    responsable_id: Mapped[int | None] = mapped_column(
         Integer,
         ForeignKey("responsables_entrega.id", ondelete="RESTRICT"),
-        nullable=False,
+        nullable=True,  # Temporal durante migración
         index=True
     )
 
@@ -258,19 +286,12 @@ class Equipo(Base):
 
     observaciones: Mapped[str | None] = mapped_column(Text)
 
-    # FK a users.id (autorizador)
-    autorizado_por: Mapped[int | None] = mapped_column(
-        Integer,
-        ForeignKey("users.id", ondelete="SET NULL"),
-        nullable=True,
-        index=True
-    )
+    # autorizado_por es VARCHAR en la BD, no FK
+    autorizado_por: Mapped[str | None] = mapped_column(String(100))
 
-    autorizador = relationship("User", foreign_keys=[autorizado_por])
-
-    # Relaciones a empresa y responsable
-    empresa = relationship("EmpresaExterna", back_populates="equipos")
-    responsable = relationship("ResponsableEntrega", back_populates="equipos")
+    # Relaciones (usando las FKs)
+    empresa = relationship("EmpresaExterna", foreign_keys=[empresa_id])
+    responsable = relationship("ResponsableEntrega", foreign_keys=[responsable_id])
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=False),
@@ -288,15 +309,29 @@ class Equipo(Base):
 class EquipoAudit(Base):
     __tablename__ = "equipo_audit"
 
-    id = Column(Integer, primary_key=True)
-    equipo_id = Column(Integer, ForeignKey("equipos.id", ondelete="CASCADE"), nullable=False)
-    actor_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    equipo_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("equipos.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True
+    )
+    actor_user_id: Mapped[int | None] = mapped_column(
+        Integer,
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True
+    )
 
-    action = Column(String(50), nullable=False)
-    detail = Column(Text, nullable=True)
-    ip = Column(String(45), nullable=True)
-    user_agent = Column(String(255), nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    action: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    detail: Mapped[str | None] = mapped_column(Text, nullable=True)
+    ip: Mapped[str | None] = mapped_column(String(45), nullable=True)
+    user_agent: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False
+    )
 
     equipo = relationship(
         "Equipo",
@@ -308,30 +343,42 @@ class EquipoAudit(Base):
 class EquipoDeletion(Base):
     __tablename__ = "equipos_deletions"
 
-    id = Column(Integer, primary_key=True)
-    equipo_id = Column(Integer, index=True)   # ID que tenía el equipo (no FK)
-    codigo_interno = Column(String(100))
-    tipo_equipo = Column(String(50))
-    marca = Column(String(100))
-    modelo = Column(String(100))
-    serial = Column(String(120))
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    equipo_id: Mapped[int | None] = mapped_column(Integer, index=True, nullable=True)
+    codigo_interno: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    tipo_equipo: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    marca: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    modelo: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    serial: Mapped[str | None] = mapped_column(String(120), nullable=True)
 
-    # 👇 Aquí mantenemos texto plano como snapshot
-    empresa_externa = Column(String(120))
-    responsable_entrega = Column(String(120))
+    # Foreign Keys y campos de texto para compatibilidad
+    empresa_externa_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    empresa_externa_nombre: Mapped[str | None] = mapped_column(String(150), nullable=True)
+    responsable_entrega: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    identificacion_responsable: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    empresa_externa: Mapped[str | None] = mapped_column(String(120), nullable=True)
 
-    estado = Column(String(50))
-    fecha_ingreso = Column(DateTime(timezone=True))
-    fecha_salida = Column(DateTime(timezone=True))
-    autorizado_por = Column(Integer)  # snapshot del users.id que autorizaba
-    observaciones = Column(Text)
+    estado: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    fecha_ingreso: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    fecha_salida: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    autorizado_por: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    observaciones: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    actor_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
-    ip = Column(String(45))
-    user_agent = Column(String(255))
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    actor_user_id: Mapped[int | None] = mapped_column(
+        Integer,
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True
+    )
+    ip: Mapped[str | None] = mapped_column(String(45), nullable=True)
+    user_agent: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False
+    )
 
-    actor = relationship("User", passive_deletes=True)
+    actor = relationship("User", foreign_keys=[actor_user_id])
 
 
 # ================== NOTIFICACIONES ================== #
