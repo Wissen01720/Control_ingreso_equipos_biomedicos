@@ -1,0 +1,30 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "api/index.py",
+      "use": "@vercel/python"
+    },
+    {
+      "src": "static/**",
+      "use": "@vercel/static"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/static/(.*)",
+      "dest": "/static/$1"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/api/index.py"
+    }
+  ],
+  "env": {
+    "FLASK_SECRET_KEY": "@flask_secret_key",
+    "WTF_CSRF_SECRET_KEY": "@wtf_csrf_secret_key",
+    "DATABASE_URL": "@database_url",
+    "RECAPTCHA_SITE_KEY": "@recaptcha_site_key",
+    "RECAPTCHA_SECRET_KEY": "@recaptcha_secret_key"
+  }
+}
