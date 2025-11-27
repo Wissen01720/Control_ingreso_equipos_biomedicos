@@ -74,12 +74,49 @@ if not DATABASE_URL:
         "Falta DATABASE_URL en .env (ej: postgresql+psycopg://usuario:pass@host:5432/dbname)"
     )
 
-# Supabase exige SSL
-engine = create_engine( # crear motor con SSL, es decir, cifrado en la conexión. SSL es Secure Sockets Layer
-    DATABASE_URL,
-    pool_pre_ping=True,
-    connect_args={"sslmode": "require"},
-)
+# En Vercel, usar connection pooler de Supabase (puerto 6543) en lugar de conexión directa
+# Esto evita problemas con IPv6 y mejora el rendimiento en serverless
+if os.getenv("VERCEL") and ":5432/" in DATABASE_URL:
+    # Convertir de conexión directa (puerto 5432) a pooler (puerto 6543)
+    DATABASE_URL = DATABASE_URL.replace(":5432/", ":6543/")
+    print(f"[Vercel] Usando Supabase connection pooler en puerto 6543")
+
+# Agregar parámetros SSL si no están presentes
+if "?" not in DATABASE_URL:
+    DATABASE_URL += "?sslmode=require"
+elif "sslmode" not in DATABASE_URL:
+    DATABASE_URL += "&sslmode=require"
+
+# Configuración de conexión para Supabase
+connect_args = {
+    "connect_timeout": 10,
+}
+
+# En producción (Vercel), configuración optimizada para serverless
+if os.getenv("VERCEL"):
+    connect_args["keepalives"] = 1
+    connect_args["keepalives_idle"] = 30
+    connect_args["keepalives_interval"] = 10
+    connect_args["keepalives_count"] = 5
+
+# Configuración del engine optimizada para serverless
+pool_config = {
+    "pool_pre_ping": True,
+    "pool_recycle": 3600,
+    "connect_args": connect_args,
+}
+
+# En Vercel, usar pool pequeño para funciones serverless
+if os.getenv("VERCEL"):
+    pool_config["pool_size"] = 1
+    pool_config["max_overflow"] = 0
+    pool_config["pool_timeout"] = 30
+else:
+    # En desarrollo local, pool más grande
+    pool_config["pool_size"] = 5
+    pool_config["max_overflow"] = 10
+
+engine = create_engine(DATABASE_URL, **pool_config)
 
 SessionLocal = scoped_session(sessionmaker(bind=engine, autoflush=False, autocommit=False))
 
