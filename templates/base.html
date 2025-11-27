@@ -62,48 +62,24 @@
   </head>
 
   <body class="bg-light d-flex flex-column min-vh-100">
-    <header class="modern-header bg-white border-bottom">
-      <div
-        class="container py-3 d-flex align-items-center justify-content-between flex-wrap gap-2"
-      >
-        <div class="d-flex align-items-center gap-3 header-left">
-          <a
-            href="{{ url_for('index') }}"
-            class="d-flex align-items-center gap-3 text-decoration-none text-dark header-brand"
-          >
-            <img
-              src="{{ url_for('static', filename='img/logo.png') }}"
-              alt="Logo USTA"
-              class="usta-logo"
-            />
-            <div class="small">
-              <div class="fw-bold text-uppercase mb-0 header-title">
-                Universidad Santo Tomás
-              </div>
-              <div class="text-muted header-subtitle">
-                Electiva Seguridad en el desarrollo de software - 2025-2
-              </div>
-            </div>
-          </a>
-        </div>
-
-        <div class="text-muted small text-end d-none d-md-block header-right">
-          <div class="fw-semibold header-code">PDS-006</div>
-          <div class="header-description">
-            Sistema para control de ingreso de equipos tecnológicos y biomédicos
-            externos
-          </div>
-        </div>
-      </div>
-    </header>
-
     <nav class="navbar navbar-expand-lg navbar-light shadow-sm">
       <div class="container">
+        <!-- Logo y marca integrados -->
         <a
-          class="navbar-brand fw-semibold"
+          class="navbar-brand d-flex align-items-center gap-2"
           href="{{ url_for('dashboard') if current_user.is_authenticated else url_for('login') }}"
         >
-          PDS-006
+          <img
+            src="{{ url_for('static', filename='img/logo b.png') }}"
+            alt="Logo USTA"
+            class="navbar-logo"
+          />
+          <div class="d-flex flex-column">
+            <span class="navbar-brand-text fw-bold">PDS-006</span>
+            <span class="navbar-brand-subtitle d-none d-lg-inline"
+              >Sistema de Control de Equipos</span
+            >
+          </div>
         </a>
 
         <button
