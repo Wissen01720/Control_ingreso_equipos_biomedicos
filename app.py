@@ -82,7 +82,11 @@ engine = create_engine( # crear motor con SSL, es decir, cifrado en la conexión
 )
 
 SessionLocal = scoped_session(sessionmaker(bind=engine, autoflush=False, autocommit=False))
-Base.metadata.create_all(engine)
+
+# Solo crear tablas si no estamos en Vercel (producción)
+# En producción, las tablas ya deben existir en Supabase
+if not os.getenv("VERCEL"):
+    Base.metadata.create_all(engine)
 
 
 # ---------- Context Manager para Sesiones DB (previene memory leaks) ----------
