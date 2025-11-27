@@ -682,6 +682,9 @@ def admin_required(view_func):
 @admin_required
 def users_index():
     q = (request.args.get("q") or "").strip()
+    page = max(1, int(request.args.get("page", 1)))
+    size = min(50, max(5, int(request.args.get("size", 15))))
+    
     db = SessionLocal()
     try:
         query = db.query(User)
@@ -692,8 +695,11 @@ def users_index():
                 User.email.ilike(like),
                 User.identificacion.ilike(like)   
             ))
-        users = query.order_by(User.id.desc()).all()
-        return render_template("users_index.html", users=users, q=q)
+        
+        total = query.count()
+        users = query.order_by(User.id.asc()).offset((page-1)*size).limit(size).all()
+        
+        return render_template("users_index.html", users=users, q=q, page=page, size=size, total=total)
     finally:
         db.close()
 
@@ -1007,9 +1013,9 @@ def my_audit():
     db = SessionLocal()
     try:
         page = max(1, int(request.args.get("page", 1)))
-        size = min(50, max(5, int(request.args.get("size", 10))))
+        size = min(50, max(5, int(request.args.get("size", 15))))
         q = db.query(models.UserAudit).filter(models.UserAudit.user_id == current_user.id)\
-                                      .order_by(models.UserAudit.id.desc())
+                                      .order_by(models.UserAudit.id.asc())
         total = q.count()
         audits = q.offset((page-1)*size).limit(size).all()
         return render_template("audit_my.html", audits=audits, page=page, size=size, total=total)
@@ -1026,7 +1032,7 @@ def audit_admin():
     try:
         q_text = (request.args.get("q") or "").strip().lower()
         page = max(1, int(request.args.get("page", 1)))
-        size = min(100, max(10, int(request.args.get("size", 20))))
+        size = min(100, max(10, int(request.args.get("size", 15))))
 
         # alias para poder filtrar por usuario afectado y actor
         UserAffected = aliased(models.User)
@@ -1039,7 +1045,7 @@ def audit_admin():
                     joinedload(models.UserAudit.user),
                     joinedload(models.UserAudit.actor),
                 )
-                .order_by(models.UserAudit.id.desc()))
+                .order_by(models.UserAudit.id.asc()))
 
         if q_text:
             like = f"%{q_text}%"
@@ -1085,7 +1091,7 @@ def audit_admin_mine():
     try:
         q_text = (request.args.get("q") or "").strip().lower()
         page = max(1, int(request.args.get("page", 1)))
-        size = min(100, max(10, int(request.args.get("size", 20))))
+        size = min(100, max(10, int(request.args.get("size", 15))))
 
         UserAffected = aliased(models.User)
 
@@ -1096,7 +1102,7 @@ def audit_admin_mine():
                     joinedload(models.UserAudit.user),
                     joinedload(models.UserAudit.actor),
                 )
-                .order_by(models.UserAudit.id.desc()))
+                .order_by(models.UserAudit.id.asc()))
 
         if q_text:
             like = f"%{q_text}%"
@@ -1258,14 +1264,14 @@ def audit_deleted():
     try:
         q = (request.args.get("q") or "").strip()
         page = max(1, int(request.args.get("page", 1)))
-        size = min(100, max(10, int(request.args.get("size", 20))))
+        size = min(100, max(10, int(request.args.get("size", 15))))
 
         Actor = aliased(models.User)
 
         qry = (db.query(models.UserDeletion)
                .outerjoin(Actor, models.UserDeletion.actor)
                .options(joinedload(models.UserDeletion.actor))
-               .order_by(models.UserDeletion.id.desc()))
+               .order_by(models.UserDeletion.id.asc()))
 
         if q:
             like = f"%{q.lower()}%"
@@ -1291,6 +1297,9 @@ def audit_deleted():
 @login_required
 def empresas_index():
     q = (request.args.get("q") or "").strip()
+    page = max(1, int(request.args.get("page", 1)))
+    size = min(50, max(5, int(request.args.get("size", 15))))
+    
     db = SessionLocal()
     try:
         qry = db.query(EmpresaExterna)
@@ -1300,8 +1309,11 @@ def empresas_index():
                 EmpresaExterna.identificacion.ilike(like),
                 EmpresaExterna.nombre_empresa.ilike(like),
             ))
-        empresas = qry.order_by(EmpresaExterna.nombre_empresa.asc()).all()
-        return render_template("empresas_index.html", empresas=empresas, q=q)
+        
+        total = qry.count()
+        empresas = qry.order_by(EmpresaExterna.id.asc()).offset((page-1)*size).limit(size).all()
+        
+        return render_template("empresas_index.html", empresas=empresas, q=q, page=page, size=size, total=total)
     finally:
         db.close()
 
@@ -1461,6 +1473,9 @@ def empresas_edit(empresa_id: int):
 @login_required
 def responsables_index():
     q = (request.args.get("q") or "").strip()
+    page = max(1, int(request.args.get("page", 1)))
+    size = min(50, max(5, int(request.args.get("size", 15))))
+    
     db = SessionLocal()
     try:
         qry = db.query(ResponsableEntrega).join(EmpresaExterna)
@@ -1475,12 +1490,10 @@ def responsables_index():
                 EmpresaExterna.identificacion.ilike(like),
             ))
 
-        responsables = qry.order_by(
-            EmpresaExterna.nombre_empresa.asc(),
-            ResponsableEntrega.nombre_responsable.asc()
-        ).all()
+        total = qry.count()
+        responsables = qry.order_by(ResponsableEntrega.id.asc()).offset((page-1)*size).limit(size).all()
 
-        return render_template("responsables_index.html", responsables=responsables, q=q)
+        return render_template("responsables_index.html", responsables=responsables, q=q, page=page, size=size, total=total)
     finally:
         db.close()
 
@@ -1760,7 +1773,7 @@ def audit_empresas_admin():
     try:
         q_text = (request.args.get("q") or "").strip().lower()
         page = max(1, int(request.args.get("page", 1)))
-        size = min(100, max(10, int(request.args.get("size", 20))))
+        size = min(100, max(10, int(request.args.get("size", 15))))
 
         Actor = aliased(User)
         EmpresaAlias = aliased(EmpresaExterna)
@@ -1772,7 +1785,7 @@ def audit_empresas_admin():
                    joinedload(EmpresaExternaAudit.actor),
                    joinedload(EmpresaExternaAudit.empresa),
                )
-               .order_by(EmpresaExternaAudit.id.desc()))
+               .order_by(EmpresaExternaAudit.id.asc()))
 
         if q_text:
             like = f"%{q_text}%"
@@ -1802,14 +1815,14 @@ def empresas_eliminadas():
     try:
         q_text = (request.args.get("q") or "").strip().lower()
         page = max(1, int(request.args.get("page", 1)))
-        size = min(100, max(10, int(request.args.get("size", 20))))
+        size = min(100, max(10, int(request.args.get("size", 15))))
 
         Actor = aliased(User)
 
         qry = (db.query(EmpresaExternaDeletion)
                .outerjoin(Actor, EmpresaExternaDeletion.actor)
                .options(joinedload(EmpresaExternaDeletion.actor))
-               .order_by(EmpresaExternaDeletion.id.desc()))
+               .order_by(EmpresaExternaDeletion.id.asc()))
 
         if q_text:
             like = f"%{q_text}%"
@@ -1839,7 +1852,7 @@ def audit_responsables_admin():
     try:
         q_text = (request.args.get("q") or "").strip().lower()
         page = max(1, int(request.args.get("page", 1)))
-        size = min(100, max(10, int(request.args.get("size", 20))))
+        size = min(100, max(10, int(request.args.get("size", 15))))
 
         Actor = aliased(User)
         ResponsableAlias = aliased(ResponsableEntrega)
@@ -1851,7 +1864,7 @@ def audit_responsables_admin():
                    joinedload(ResponsableEntregaAudit.actor),
                    joinedload(ResponsableEntregaAudit.responsable),
                )
-               .order_by(ResponsableEntregaAudit.id.desc()))
+               .order_by(ResponsableEntregaAudit.id.asc()))
 
         if q_text:
             like = f"%{q_text}%"
@@ -1881,14 +1894,14 @@ def responsables_eliminados():
     try:
         q_text = (request.args.get("q") or "").strip().lower()
         page = max(1, int(request.args.get("page", 1)))
-        size = min(100, max(10, int(request.args.get("size", 20))))
+        size = min(100, max(10, int(request.args.get("size", 15))))
 
         Actor = aliased(User)
 
         qry = (db.query(ResponsableEntregaDeletion)
                .outerjoin(Actor, ResponsableEntregaDeletion.actor)
                .options(joinedload(ResponsableEntregaDeletion.actor))
-               .order_by(ResponsableEntregaDeletion.id.desc()))
+               .order_by(ResponsableEntregaDeletion.id.asc()))
 
         if q_text:
             like = f"%{q_text}%"
@@ -1919,7 +1932,7 @@ def responsables_eliminados():
 def equipos_index():
     q = (request.args.get("q") or "").strip()
     page = max(1, int(request.args.get("page", 1)))
-    size = min(100, max(10, int(request.args.get("size", 20))))
+    size = min(100, max(10, int(request.args.get("size", 15))))
 
     db = SessionLocal()
     try:
@@ -1948,7 +1961,7 @@ def equipos_index():
         total = qry.distinct(Equipo.id).count()
 
         equipos = (
-            qry.order_by(Equipo.id.desc())
+            qry.order_by(Equipo.id.asc())
                .offset((page-1)*size)
                .limit(size)
                .all()
@@ -2649,7 +2662,7 @@ def audit_equipos_admin():
     try:
         q_text = (request.args.get("q") or "").strip().lower()
         page = max(1, int(request.args.get("page", 1)))
-        size = min(100, max(10, int(request.args.get("size", 20))))
+        size = min(100, max(10, int(request.args.get("size", 15))))
 
         Actor = aliased(models.User)
         EquipoAlias = aliased(models.Equipo)
@@ -2661,7 +2674,7 @@ def audit_equipos_admin():
                    joinedload(models.EquipoAudit.actor),
                    joinedload(models.EquipoAudit.equipo),
                )
-               .order_by(models.EquipoAudit.id.desc()))
+               .order_by(models.EquipoAudit.id.asc()))
 
         if q_text:
             like = f"%{q_text}%"
@@ -2695,12 +2708,12 @@ def audit_equipo_show(equipo_id: int):
             return redirect(url_for("equipos_index"))
 
         page = max(1, int(request.args.get("page", 1)))
-        size = min(100, max(10, int(request.args.get("size", 20))))
+        size = min(100, max(10, int(request.args.get("size", 15))))
 
         qry = (db.query(EquipoAudit)
                .filter(EquipoAudit.equipo_id == equipo_id)
                .options(joinedload(EquipoAudit.actor))
-               .order_by(EquipoAudit.id.desc()))
+               .order_by(EquipoAudit.id.asc()))
 
         total = qry.count()
         audits = qry.offset((page-1)*size).limit(size).all()
@@ -2718,14 +2731,14 @@ def equipos_eliminados():
     try:
         q_text = (request.args.get("q") or "").strip().lower()
         page = max(1, int(request.args.get("page", 1)))
-        size = min(100, max(10, int(request.args.get("size", 20))))
+        size = min(100, max(10, int(request.args.get("size", 15))))
 
         Actor = aliased(models.User)
 
         qry = (db.query(models.EquipoDeletion)
                .outerjoin(Actor, models.EquipoDeletion.actor)
                .options(joinedload(models.EquipoDeletion.actor))
-               .order_by(models.EquipoDeletion.id.desc()))
+               .order_by(models.EquipoDeletion.id.asc()))
 
         if q_text:
             like = f"%{q_text}%"
