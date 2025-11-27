@@ -3049,7 +3049,7 @@ def _export_equipos_pdf(equipos, filtros: dict):
     generado = datetime.now().strftime("%d/%m/%Y %H:%M")
 
         # URL "normal" al logo, igual que en base.html
-    logo_url = url_for("static", filename="img/logo b.png")
+    logo_url = url_for("static", filename="img/logo-b.png")
 
     html = render_template(
         "reportes_pdf.html",
