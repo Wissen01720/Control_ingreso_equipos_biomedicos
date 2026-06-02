@@ -159,7 +159,11 @@ login_manager.login_message_category = "warning"
 def load_user(user_id):
     db = SessionLocal()
     try:
-        return db.get(User, int(user_id))
+        try:
+            return db.get(User, int(user_id))
+        except Exception:
+            # Si la sesión está rota o la base no responde, no tumbamos la página pública.
+            return None
     finally:
         db.close()
 
