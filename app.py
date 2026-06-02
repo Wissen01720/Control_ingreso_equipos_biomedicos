@@ -122,8 +122,7 @@ SessionLocal = scoped_session(sessionmaker(bind=engine, autoflush=False, autocom
 
 # Solo crear tablas si no estamos en Vercel (producción)
 # En producción, las tablas ya deben existir en Supabase
-if not os.getenv("VERCEL"):
-    Base.metadata.create_all(engine)
+Base.metadata.create_all(engine, checkfirst=True)  # checkfirst=True evita intentar crear si ya existen
 
 
 # ---------- Context Manager para Sesiones DB (previene memory leaks) ----------
