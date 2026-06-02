@@ -74,12 +74,8 @@ if not DATABASE_URL:
         "Falta DATABASE_URL en .env (ej: postgresql+psycopg://usuario:pass@host:5432/dbname)"
     )
 
-# En Vercel, usar connection pooler de Supabase (puerto 6543) en lugar de conexión directa
-# Esto evita problemas con IPv6 y mejora el rendimiento en serverless
-if os.getenv("VERCEL") and ":5432/" in DATABASE_URL:
-    # Convertir de conexión directa (puerto 5432) a pooler (puerto 6543)
-    DATABASE_URL = DATABASE_URL.replace(":5432/", ":6543/")
-    print(f"[Vercel] Usando Supabase connection pooler en puerto 6543")
+# En Vercel, usa exactamente la DATABASE_URL configurada en las variables de entorno.
+# Si necesitas Session Pooler o Direct Connection, pon la cadena correcta en Vercel.
 
 # Agregar parámetros SSL si no están presentes
 if "?" not in DATABASE_URL:
