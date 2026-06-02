@@ -74,6 +74,10 @@ if not DATABASE_URL:
         "Falta DATABASE_URL en .env (ej: postgresql+psycopg://usuario:pass@host:5432/dbname)"
     )
 
+# Acepta URLs sin sufijo de driver y las normaliza a psycopg para SQLAlchemy.
+if DATABASE_URL.startswith("postgresql://"):
+    DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+psycopg://", 1)
+
 # En Vercel, usa exactamente la DATABASE_URL configurada en las variables de entorno.
 # Si necesitas Session Pooler o Direct Connection, pon la cadena correcta en Vercel.
 
